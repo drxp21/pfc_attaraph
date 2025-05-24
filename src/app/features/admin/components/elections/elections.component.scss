@@ -1,0 +1,467 @@
+/* Election Management Component Styles */
+
+/* Section Header */
+.section-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 32px;
+    padding: 24px 0;
+    border-bottom: 1px solid var(--gray-200);
+  }
+  
+  .header-content h2 {
+    font-size: 2rem;
+    color: var(--primary);
+    margin-bottom: 8px;
+    font-weight: 600;
+  }
+  
+  .header-content p {
+    color: var(--gray-500);
+    font-size: 1rem;
+    margin: 0;
+  }
+  
+  /* Card Components */
+  .card {
+    background: white;
+    border-radius: var(--border-radius);
+    padding: 32px;
+    box-shadow: var(--shadow-md);
+    margin-bottom: 24px;
+  }
+  
+  .card h3 {
+    color: var(--primary);
+    font-size: 1.5rem;
+    font-weight: 600;
+    margin-bottom: 24px;
+  }
+  
+  .mt-4 {
+    margin-top: 32px;
+  }
+  
+  /* Form Styles */
+  .election-form {
+    display: flex;
+    flex-direction: column;
+    gap: 24px;
+  }
+  
+  .form-group {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+  }
+  
+  .form-group label {
+    font-weight: 500;
+    color: var(--primary);
+    font-size: 0.95rem;
+  }
+  
+  .form-control {
+    padding: 12px;
+    border: 1px solid var(--gray-300);
+    border-radius: var(--border-radius);
+    font-size: 1rem;
+    transition: var(--transition);
+    background: white;
+  }
+  
+  .form-control:focus {
+    border-color: var(--secondary);
+    outline: none;
+    box-shadow: 0 0 0 3px rgba(63, 81, 181, 0.1);
+  }
+  
+  .form-control::placeholder {
+    color: var(--gray-400);
+  }
+  
+  /* Form Row Layout */
+  .form-row {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 24px;
+  }
+  
+  @media (max-width: 768px) {
+    .form-row {
+      grid-template-columns: 1fr;
+    }
+  }
+  
+  /* Form Actions */
+  .form-actions {
+    display: flex;
+    gap: 16px;
+    justify-content: flex-end;
+    padding-top: 16px;
+    border-top: 1px solid var(--gray-200);
+  }
+  
+  @media (max-width: 480px) {
+    .form-actions {
+      flex-direction: column;
+    }
+  }
+  
+  /* Button Styles */
+  .btn {
+    padding: 12px 24px;
+    border-radius: var(--border-radius);
+    font-weight: 500;
+    font-size: 0.95rem;
+    cursor: pointer;
+    transition: var(--transition);
+    border: none;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    text-decoration: none;
+  }
+  
+  .btn-primary {
+    background: var(--primary);
+    color: white;
+  }
+  
+  .btn-primary:hover:not(:disabled) {
+    background: var(--primary-dark);
+    transform: translateY(-1px);
+    box-shadow: var(--shadow-md);
+  }
+  
+  .btn-outline {
+    background: transparent;
+    color: var(--primary);
+    border: 1px solid var(--gray-300);
+  }
+  
+  .btn-outline:hover {
+    background: var(--gray-50);
+    border-color: var(--primary);
+  }
+  
+  .btn-success {
+    background: var(--success, #4caf50);
+    color: white;
+  }
+  
+  .btn-success:hover {
+    background: #45a049;
+  }
+  
+  .btn-warning {
+    background: var(--warning, #ff9800);
+    color: white;
+  }
+  
+  .btn-warning:hover {
+    background: #f57c00;
+  }
+  
+  .btn-danger {
+    background: var(--error, #f44336);
+    color: white;
+  }
+  
+  .btn-danger:hover {
+    background: #d32f2f;
+  }
+  
+  .btn-info {
+    background: var(--info, #2196f3);
+    color: white;
+    font-size: 0.9rem;
+    padding: 8px 16px;
+  }
+  
+  .btn-info:hover {
+    background: #1976d2;
+  }
+  
+  .btn-sm {
+    padding: 8px 16px;
+    font-size: 0.9rem;
+  }
+  
+  .btn:disabled {
+    opacity: 0.6;
+    cursor: not-allowed;
+    transform: none;
+  }
+  
+  /* Icon Buttons */
+  .btn-icon {
+    background: none;
+    border: none;
+    padding: 8px;
+    border-radius: var(--border-radius);
+    color: var(--gray-500);
+    cursor: pointer;
+    transition: var(--transition);
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+  }
+  
+  .btn-icon:hover {
+    background: var(--gray-100);
+    color: var(--primary);
+  }
+  
+  /* Table Styles */
+  .table-responsive {
+    overflow-x: auto;
+    border-radius: var(--border-radius);
+    border: 1px solid var(--gray-200);
+  }
+  
+  .elections-table {
+    width: 100%;
+    border-collapse: collapse;
+    background: white;
+  }
+  
+  .elections-table th {
+    background: var(--gray-50);
+    color: var(--primary);
+    font-weight: 600;
+    padding: 16px;
+    text-align: left;
+    border-bottom: 2px solid var(--gray-200);
+    font-size: 0.95rem;
+  }
+  
+  .elections-table td {
+    padding: 16px;
+    border-bottom: 1px solid var(--gray-200);
+    color: var(--gray-700);
+  }
+  
+  .elections-table tr:hover {
+    background: var(--gray-50);
+  }
+  
+  /* Status Badges */
+  .status-badge {
+    padding: 6px 12px;
+    border-radius: 20px;
+    font-size: 0.85rem;
+    font-weight: 500;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+  }
+  
+  .status-badge.brouillon {
+    background: rgba(158, 158, 158, 0.1);
+    color: #757575;
+  }
+  
+  .status-badge.ouverte {
+    background: rgba(76, 175, 80, 0.1);
+    color: #388e3c;
+  }
+  
+  .status-badge.en-cours {
+    background: rgba(33, 150, 243, 0.1);
+    color: #1976d2;
+  }
+  
+  .status-badge.fermee {
+    background: rgba(244, 67, 54, 0.1);
+    color: #d32f2f;
+  }
+  
+  /* Actions Column */
+  .actions {
+    display: flex;
+    gap: 8px;
+    align-items: center;
+  }
+  
+  /* Modal Styles */
+  .modal-overlay {
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: rgba(0, 0, 0, 0.5);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 1000;
+    padding: 20px;
+  }
+  
+  .modal-dialog {
+    width: 100%;
+    max-width: 500px;
+  }
+  
+  .modal-content {
+    background: white;
+    border-radius: var(--border-radius);
+    box-shadow: var(--shadow-lg);
+    overflow: hidden;
+  }
+  
+  .modal-header {
+    padding: 24px 32px 16px;
+    border-bottom: 1px solid var(--gray-200);
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+  }
+  
+  .modal-header h4 {
+    color: var(--primary);
+    font-size: 1.25rem;
+    font-weight: 600;
+    margin: 0;
+  }
+  
+  .close-btn {
+    background: none;
+    border: none;
+    font-size: 1.5rem;
+    color: var(--gray-500);
+    cursor: pointer;
+    padding: 0;
+    width: 32px;
+    height: 32px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 50%;
+    transition: var(--transition);
+  }
+  
+  .close-btn:hover {
+    background: var(--gray-100);
+    color: var(--primary);
+  }
+  
+  .modal-body {
+    padding: 24px 32px;
+  }
+  
+  .modal-body p {
+    color: var(--gray-700);
+    margin-bottom: 16px;
+    line-height: 1.5;
+  }
+  
+  .modal-body .warning {
+    color: var(--warning, #ff9800);
+    font-weight: 500;
+    margin: 0;
+  }
+  
+  .modal-footer {
+    padding: 16px 32px 24px;
+    display: flex;
+    gap: 16px;
+    justify-content: flex-end;
+  }
+  
+  /* State Messages */
+  .empty-state, .loading-state {
+    text-align: center;
+    padding: 48px 24px;
+    color: var(--gray-500);
+    font-size: 1.1rem;
+  }
+  
+  .loading-state {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 12px;
+  }
+  
+  .loading-state::before {
+    content: '';
+    width: 20px;
+    height: 20px;
+    border: 2px solid var(--gray-300);
+    border-radius: 50%;
+    border-top-color: var(--primary);
+    animation: spin 1s linear infinite;
+  }
+  
+  /* Error Messages */
+  .error-message {
+    color: var(--error);
+    font-size: 0.85rem;
+    margin-top: 4px;
+  }
+  
+  /* Animations */
+  @keyframes spin {
+    to { transform: rotate(360deg); }
+  }
+  
+  /* Responsive Design */
+  @media (max-width: 768px) {
+    .section-header {
+      flex-direction: column;
+      align-items: flex-start;
+      gap: 16px;
+    }
+    
+    .card {
+      padding: 24px;
+    }
+    
+    .elections-table {
+      font-size: 0.9rem;
+    }
+    
+    .elections-table th,
+    .elections-table td {
+      padding: 12px 8px;
+    }
+    
+    .actions {
+      flex-direction: column;
+      gap: 4px;
+    }
+    
+    .modal-content {
+      margin: 20px;
+    }
+    
+    .modal-header,
+    .modal-body,
+    .modal-footer {
+      padding-left: 24px;
+      padding-right: 24px;
+    }
+  }
+  
+  /* Focus States for Accessibility */
+  .btn:focus,
+  .form-control:focus,
+  .btn-icon:focus {
+    outline: 2px solid var(--secondary);
+    outline-offset: 2px;
+  }
+  
+  /* Print Styles */
+  @media print {
+    .btn, .actions, .modal-overlay {
+      display: none !important;
+    }
+    
+    .card {
+      box-shadow: none;
+      border: 1px solid var(--gray-300);
+    }
+  }

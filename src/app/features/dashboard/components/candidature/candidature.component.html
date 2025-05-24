@@ -1,1 +1,106 @@
-<p>candidature works!</p>
+<div class="candidature-container">
+  <div class="page-header">
+    <h2>Ma Candidature</h2>
+    <p>Gérez vos candidatures aux élections universitaires</p>
+  </div>
+
+  <!-- Message for non-PER users -->
+  <div *ngIf="currentUser && currentUser.type_personnel !== 'PER'" class="alert alert-warning">
+    Vous devez être un Personnel Enseignant et de Recherche (PER) pour soumettre ou gérer des candidatures.
+  </div>
+
+  <!-- Toggle Button for New Candidature Form -->
+  <div class="text-right mb-3" *ngIf="currentUser && currentUser.type_personnel === 'PER'">
+    <button class="btn btn-primary" (click)="toggleForm()">
+      {{ showForm ? 'Annuler la nouvelle candidature' : 'Déposer une nouvelle candidature' }}
+    </button>
+  </div>
+
+  <!-- New Candidature Form -->
+  <div *ngIf="showForm && currentUser && currentUser.type_personnel === 'PER'" class="card form-container mb-4">
+    <h3 class="mb-3">Nouvelle Candidature</h3>
+    <form [formGroup]="candidatureForm" (ngSubmit)="onSubmit()">
+      <div class="form-group">
+        <label for="election_id">Élection Concernée</label>
+        <select id="election_id" formControlName="election_id" class="form-control" [class.is-invalid]="candidatureForm.get('election_id')!.invalid && candidatureForm.get('election_id')!.touched">
+          <option value="" disabled>Sélectionnez une élection</option>
+          <option *ngFor="let election of availableElections" [value]="election.id">
+            {{ election.titre }}
+          </option>
+        </select>
+        <div *ngIf="isLoadingElections" class="text-muted small">Chargement des élections...</div>
+        <div *ngIf="candidatureForm.get('election_id')!.invalid && candidatureForm.get('election_id')!.touched" class="invalid-feedback">
+          Veuillez sélectionner une élection.
+        </div>
+      </div>
+
+      <div class="form-group">
+        <label for="programme">Votre Programme Électoral</label>
+        <textarea id="programme" formControlName="programme" class="form-control" rows="8" placeholder="Décrivez votre vision, vos objectifs et vos propositions principales..." [class.is-invalid]="candidatureForm.get('programme')!.invalid && candidatureForm.get('programme')!.touched"></textarea>
+        <div *ngIf="candidatureForm.get('programme')!.invalid && candidatureForm.get('programme')!.touched" class="invalid-feedback">
+          <div *ngIf="candidatureForm.get('programme')!.errors?.['required']">Le programme électoral est requis.</div>
+          <div *ngIf="candidatureForm.get('programme')!.errors?.['minlength']">Le programme doit contenir au moins 50 caractères.</div>
+        </div>
+      </div>
+
+      <!-- TODO: Add file upload fields for documents if needed -->
+      <!-- Example:
+      <div class="form-group">
+        <label for="cv">CV Académique (PDF)</label>
+        <input type="file" id="cv" formControlName="cv" class="form-control-file">
+      </div>
+      -->
+
+      <div *ngIf="submissionError" class="alert alert-danger mt-3">
+        {{ submissionError }}
+      </div>
+
+      <div class="form-actions mt-3">
+        <button type="button" class="btn btn-outline-secondary mr-2" (click)="toggleForm()">Annuler</button>
+        <button type="submit" class="btn btn-primary" [disabled]="candidatureForm.invalid || isSubmitting">
+          <span *ngIf="isSubmitting" class="spinner-border spinner-border-sm" role="status" aria-hidden="true"></span>
+          {{ isSubmitting ? 'Soumission en cours...' : 'Soumettre ma candidature' }}
+        </button>
+      </div>
+    </form>
+  </div>
+
+  <!-- List of My Candidatures -->
+  <div class="card list-container">
+    <h3 class="mb-3">Mes Candidatures Soumises</h3>
+    <div *ngIf="isLoadingMyCandidatures" class="text-center"><span class="spinner-border"></span> Chargement...</div>
+    
+    <div *ngIf="myCandidatures.length === 0 && !isLoadingMyCandidatures" class="alert alert-info">
+      Vous n'avez pas encore soumis de candidature.
+    </div>
+
+    <div *ngIf="myCandidatures.length > 0 && !isLoadingMyCandidatures" class="candidatures-grid">
+      <div *ngFor="let cand of myCandidatures" class="candidature-card-item">
+        <div class="card-item-header">
+          <h5>{{ cand.election?.titre || 'Élection non spécifiée' }}</h5>
+          <span class="badge" [ngClass]="{ 
+            'badge-primary': cand.statut === 'SOUMISE' || cand.statut === 'EN_ATTENTE',
+            'badge-success': cand.statut === 'VALIDEE',
+            'badge-danger': cand.statut === 'REJETEE',
+            'badge-secondary': cand.statut === 'RETIREE'
+          }">{{ mapCandidatureStatut(cand.statut) }}</span>
+        </div>
+        <div class="card-item-body">
+          <p><strong>Programme:</strong> {{ cand.programme | slice:0:150 }}{{ cand.programme.length > 150 ? '...' : '' }}</p>
+          <p><small>Soumise le: {{ cand.date_soumission | date:'dd/MM/yyyy HH:mm' }}</small></p>
+          <div *ngIf="cand.statut === 'REJETEE' && cand.commentaire_admin">
+            <p class="text-danger"><small><strong>Motif du rejet:</strong> {{ cand.commentaire_admin }}</small></p>
+          </div>
+          <div *ngIf="cand.statut === 'VALIDEE' && cand.date_validation">
+            <p class="text-success"><small>Validée le: {{ cand.date_validation | date:'dd/MM/yyyy' }}</small></p>
+          </div>
+        </div>
+        <div class="card-item-actions text-right">
+          <!-- <button class="btn btn-sm btn-outline-info mr-2">Voir Détails</button> -->
+          <!-- <button *ngIf="cand.statut === 'SOUMISE' || cand.statut === 'EN_ATTENTE'" class="btn btn-sm btn-outline-warning">Retirer</button> -->
+        </div>
+      </div>
+    </div>
+  </div>
+
+</div>

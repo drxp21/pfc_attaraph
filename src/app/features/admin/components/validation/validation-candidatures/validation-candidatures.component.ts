@@ -1,7 +1,8 @@
 import { Component, OnInit } from '@angular/core';
+import { ActivatedRoute } from '@angular/router';
 import { CommonModule } from '@angular/common';
 import { FormBuilder, FormGroup, ReactiveFormsModule, Validators } from '@angular/forms';
-import { ValidationService } from '../../../../../core/services/validation.service';
+import { CandidatureService, Candidature } from '../../../../../core/services/candidature.service';
 
 @Component({
   selector: 'app-validation-candidatures',
@@ -14,33 +15,41 @@ import { ValidationService } from '../../../../../core/services/validation.servi
         <p>Gérez et validez les candidatures aux élections</p>
       </div>
 
+      <!-- Loading state -->
+      <div *ngIf="isLoading" class="loading-state">
+        <span class="spinner"></span>
+        <p>Chargement des candidatures...</p>
+      </div>
+
+      <!-- Error state -->
+      <div *ngIf="error" class="alert alert-danger">
+        {{ error }}
+      </div>
+
+      <!-- Empty state -->
+      <div *ngIf="!isLoading && !error && pendingCandidatures.length === 0" class="empty-state">
+        <p>Aucune candidature en attente de validation.</p>
+      </div>
+
       <!-- Liste des candidatures en attente -->
-      <div class="candidatures-grid">
+      <div class="candidatures-grid" *ngIf="!isLoading && pendingCandidatures.length > 0">
         <div *ngFor="let candidature of pendingCandidatures" class="candidature-card">
           <div class="candidature-header">
-            <span class="status-badge pending">En attente</span>
-            <span class="submission-date">{{ candidature.submissionDate | date:'dd/MM/yyyy' }}</span>
+            <span class="status-badge" [class]="candidature.statut.toLowerCase()">
+              {{ mapStatus(candidature.statut) }}
+            </span>
+            <span class="submission-date">{{ candidature.date_soumission | date:'dd/MM/yyyy' }}</span>
           </div>
 
           <div class="candidate-info">
-            <h3>{{ candidature.candidateName }}</h3>
-            <p>{{ candidature.position }}</p>
-            <p class="election-title">{{ candidature.electionTitle }}</p>
-          </div>
-
-          <div class="documents-section">
-            <h4>Documents soumis</h4>
-            <div class="document-list">
-              <a href="#" class="document-link" *ngFor="let doc of candidature.documents">
-                <span class="doc-icon">📄</span>
-                {{ doc.name }}
-              </a>
-            </div>
+            <h3>{{ candidature.candidat?.nom }} {{ candidature.candidat?.prenom }}</h3>
+            <p>{{ candidature.candidat?.type_personnel }}</p>
+            <p class="election-title">{{ candidature.election?.titre }}</p>
           </div>
 
           <div class="program-section">
             <h4>Programme électoral</h4>
-            <p>{{ candidature.program }}</p>
+            <p>{{ candidature.programme }}</p>
           </div>
 
           <div class="validation-form" *ngIf="selectedCandidature?.id === candidature.id">
@@ -49,36 +58,40 @@ import { ValidationService } from '../../../../../core/services/validation.servi
                 <label>Décision</label>
                 <div class="radio-group">
                   <label class="radio-label">
-                    <input type="radio" formControlName="decision" value="approve">
+                    <input type="radio" formControlName="statut" value="VALIDEE">
                     Approuver
                   </label>
                   <label class="radio-label">
-                    <input type="radio" formControlName="decision" value="reject">
+                    <input type="radio" formControlName="statut" value="REJETEE">
                     Rejeter
                   </label>
                 </div>
               </div>
 
-              <div class="form-group" *ngIf="validationForm.get('decision')?.value === 'reject'">
-                <label for="reason">Motif du rejet</label>
-                <textarea id="reason" formControlName="reason" class="form-control" rows="3"></textarea>
+              <div class="form-group" *ngIf="validationForm.get('statut')?.value === 'REJETEE'">
+                <label for="commentaire_admin">Motif du rejet</label>
+                <textarea id="commentaire_admin" formControlName="commentaire_admin" class="form-control" rows="3"
+                         placeholder="Veuillez expliquer la raison du rejet..."></textarea>
+                <div class="invalid-feedback" *ngIf="validationForm.get('commentaire_admin')?.errors?.['required'] && validationForm.get('commentaire_admin')?.touched">
+                  Le motif du rejet est requis.
+                </div>
+                <div class="invalid-feedback" *ngIf="validationForm.get('commentaire_admin')?.errors?.['minlength'] && validationForm.get('commentaire_admin')?.touched">
+                  Le motif doit contenir au moins 10 caractères.
+                </div>
               </div>
 
               <div class="form-actions">
                 <button type="button" class="btn btn-outline" (click)="cancelValidation()">
                   Annuler
                 </button>
-                <button type="submit" class="btn btn-primary" [disabled]="!validationForm.valid">
-                  Confirmer
+                <button type="submit" class="btn btn-primary" [disabled]="!validationForm.valid || isSubmitting">
+                  {{ isSubmitting ? 'Validation en cours...' : 'Confirmer' }}
                 </button>
               </div>
             </form>
           </div>
 
-          <div class="card-actions" *ngIf="!selectedCandidature">
-            <button class="btn btn-outline" (click)="viewDocuments(candidature)">
-              Voir les documents
-            </button>
+          <div class="card-actions" *ngIf="!selectedCandidature && candidature.statut === 'EN_ATTENTE'">
             <button class="btn btn-primary" (click)="startValidation(candidature)">
               Valider la candidature
             </button>
@@ -109,6 +122,41 @@ import { ValidationService } from '../../../../../core/services/validation.servi
       color: var(--gray-500);
     }
 
+    .loading-state,
+    .empty-state {
+      text-align: center;
+      padding: 48px;
+      background: white;
+      border-radius: var(--border-radius);
+      box-shadow: var(--shadow-sm);
+    }
+
+    .spinner {
+      display: inline-block;
+      width: 40px;
+      height: 40px;
+      border: 4px solid var(--gray-200);
+      border-top-color: var(--primary);
+      border-radius: 50%;
+      animation: spin 1s linear infinite;
+    }
+
+    @keyframes spin {
+      to { transform: rotate(360deg); }
+    }
+
+    .alert {
+      padding: 16px;
+      border-radius: var(--border-radius);
+      margin-bottom: 24px;
+    }
+
+    .alert-danger {
+      background: #FEE2E2;
+      color: #991B1B;
+      border: 1px solid #FCA5A5;
+    }
+
     .candidatures-grid {
       display: grid;
       grid-template-columns: repeat(auto-fit, minmax(400px, 1fr));
@@ -136,9 +184,19 @@ import { ValidationService } from '../../../../../core/services/validation.servi
       font-weight: 500;
     }
 
-    .status-badge.pending {
+    .status-badge.en_attente {
       background: rgba(255, 152, 0, 0.1);
       color: #FF9800;
+    }
+
+    .status-badge.validee {
+      background: rgba(76, 175, 80, 0.1);
+      color: #4CAF50;
+    }
+
+    .status-badge.rejetee {
+      background: rgba(244, 67, 54, 0.1);
+      color: #F44336;
     }
 
     .submission-date {
@@ -167,42 +225,14 @@ import { ValidationService } from '../../../../../core/services/validation.servi
       color: var(--secondary);
     }
 
-    .documents-section,
     .program-section {
       margin-bottom: 20px;
     }
 
-    .documents-section h4,
     .program-section h4 {
       font-size: 1.1rem;
       margin-bottom: 12px;
       color: var(--primary);
-    }
-
-    .document-list {
-      display: flex;
-      flex-wrap: wrap;
-      gap: 12px;
-    }
-
-    .document-link {
-      display: flex;
-      align-items: center;
-      gap: 8px;
-      padding: 8px 12px;
-      background: var(--gray-100);
-      border-radius: var(--border-radius);
-      color: var(--primary);
-      text-decoration: none;
-      transition: var(--transition);
-    }
-
-    .document-link:hover {
-      background: var(--gray-200);
-    }
-
-    .doc-icon {
-      font-size: 1.2rem;
     }
 
     .program-section p {
@@ -254,6 +284,12 @@ import { ValidationService } from '../../../../../core/services/validation.servi
       box-shadow: 0 0 0 3px rgba(63, 81, 181, 0.1);
     }
 
+    .invalid-feedback {
+      color: #dc3545;
+      font-size: 0.875rem;
+      margin-top: 4px;
+    }
+
     .form-actions {
       display: flex;
       justify-content: flex-end;
@@ -285,28 +321,32 @@ import { ValidationService } from '../../../../../core/services/validation.servi
   `]
 })
 export class ValidationCandidaturesComponent implements OnInit {
-  pendingCandidatures: any[] = [];
-  selectedCandidature: any = null;
+  pendingCandidatures: Candidature[] = [];
+  selectedCandidature: Candidature | null = null;
   validationForm: FormGroup;
+  isLoading = false;
+  isSubmitting = false;
+  error: string | null = null;
 
   constructor(
     private fb: FormBuilder,
-    private validationService: ValidationService
+    private candidatureService: CandidatureService,
+    private route: ActivatedRoute
   ) {
     this.validationForm = this.fb.group({
-      decision: ['', Validators.required],
-      reason: ['']
+      statut: ['', Validators.required],
+      commentaire_admin: ['']
     });
 
-    // Ajouter la validation conditionnelle pour le motif
-    this.validationForm.get('decision')?.valueChanges.subscribe(value => {
-      const reasonControl = this.validationForm.get('reason');
-      if (value === 'reject') {
-        reasonControl?.setValidators([Validators.required, Validators.minLength(10)]);
+    // Add conditional validation for rejection reason
+    this.validationForm.get('statut')?.valueChanges.subscribe(value => {
+      const commentaireControl = this.validationForm.get('commentaire_admin');
+      if (value === 'REJETEE') {
+        commentaireControl?.setValidators([Validators.required, Validators.minLength(10)]);
       } else {
-        reasonControl?.clearValidators();
+        commentaireControl?.clearValidators();
       }
-      reasonControl?.updateValueAndValidity();
+      commentaireControl?.updateValueAndValidity();
     });
   }
 
@@ -314,43 +354,24 @@ export class ValidationCandidaturesComponent implements OnInit {
     this.loadPendingCandidatures();
   }
 
-  async loadPendingCandidatures() {
-    try {
-      // Données de démonstration
-      this.pendingCandidatures = [
-        {
-          id: 1,
-          candidateName: 'Dr. Martin Dupont',
-          position: 'Maître de conférences',
-          electionTitle: 'Chef du Département Informatique',
-          submissionDate: new Date(),
-          program: 'Programme axé sur la modernisation des enseignements...',
-          documents: [
-            { name: 'CV.pdf' },
-            { name: 'Lettre de motivation.pdf' },
-            { name: 'Programme détaillé.pdf' }
-          ]
-        },
-        {
-          id: 2,
-          candidateName: 'Pr. Sophie Laurent',
-          position: 'Professeure des universités',
-          electionTitle: 'Directeur UFR Sciences',
-          submissionDate: new Date(),
-          program: 'Programme centré sur l\'innovation pédagogique...',
-          documents: [
-            { name: 'CV.pdf' },
-            { name: 'Lettre de motivation.pdf' },
-            { name: 'Programme détaillé.pdf' }
-          ]
-        }
-      ];
-    } catch (error) {
-      console.error('Erreur lors du chargement des candidatures:', error);
-    }
+  loadPendingCandidatures() {
+    this.isLoading = true;
+    this.error = null;
+    
+    this.candidatureService.getPendingCandidatures().subscribe({
+      next: (candidatures) => {
+        this.pendingCandidatures = candidatures;
+        this.isLoading = false;
+      },
+      error: (err) => {
+        console.error('Error loading pending candidatures:', err);
+        this.error = 'Une erreur est survenue lors du chargement des candidatures.';
+        this.isLoading = false;
+      }
+    });
   }
 
-  startValidation(candidature: any) {
+  startValidation(candidature: Candidature) {
     this.selectedCandidature = candidature;
     this.validationForm.reset();
   }
@@ -360,26 +381,46 @@ export class ValidationCandidaturesComponent implements OnInit {
     this.validationForm.reset();
   }
 
-  async submitValidation(candidature: any) {
-    if (this.validationForm.valid) {
-      try {
-        const { decision, reason } = this.validationForm.value;
-        await this.validationService.validateCandidacy(
-          candidature.id,
-          decision,
-          reason
-        );
-        
-        // Recharger les candidatures
-        await this.loadPendingCandidatures();
-        this.cancelValidation();
-      } catch (error) {
-        console.error('Erreur lors de la validation:', error);
-      }
+  submitValidation(candidature: Candidature) {
+    if (this.validationForm.valid && !this.isSubmitting) {
+      this.isSubmitting = true;
+      const { statut, commentaire_admin } = this.validationForm.value;
+
+      this.candidatureService.validateCandidature(
+        candidature.id,
+        statut,
+        commentaire_admin
+      ).subscribe({
+        next: (response) => {
+          this.isSubmitting = false;
+          this.cancelValidation();
+          // Show success message
+          this.error = null;
+          // Update the candidature in the list with the new data
+          const index = this.pendingCandidatures.findIndex(c => c.id === candidature.id);
+          if (index !== -1) {
+            this.pendingCandidatures[index] = response.candidature;
+          }
+          // Remove from list if it's no longer pending
+          this.pendingCandidatures = this.pendingCandidatures.filter(c => c.statut === 'EN_ATTENTE');
+        },
+        error: (err) => {
+          console.error('Error validating candidature:', err);
+          this.error = err.error?.message || 'Une erreur est survenue lors de la validation de la candidature.';
+          this.isSubmitting = false;
+        }
+      });
     }
   }
 
-  viewDocuments(candidature: any) {
-    // Implémenter la visualisation des documents
+  mapStatus(status: string): string {
+    const statusMap: { [key: string]: string } = {
+      'SOUMISE': 'Soumise',
+      'EN_ATTENTE': 'En attente',
+      'VALIDEE': 'Validée',
+      'REJETEE': 'Rejetée',
+      'RETIREE': 'Retirée'
+    };
+    return statusMap[status] || status;
   }
 }

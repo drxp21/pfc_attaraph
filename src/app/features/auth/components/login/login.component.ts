@@ -4,6 +4,7 @@ import { RouterModule } from '@angular/router';
 import { FormBuilder, FormGroup, ReactiveFormsModule, Validators } from '@angular/forms';
 import { AuthService } from '../../../../core/services/auth.service';
 import { Router } from '@angular/router';
+import { finalize } from 'rxjs/operators';
 
 @Component({
   selector: 'app-login',
@@ -236,25 +237,33 @@ export class LoginComponent {
     this.showPassword = !this.showPassword;
   }
   
-  async onSubmit() {
+  onSubmit() {
     if (this.loginForm.invalid) return;
     
     this.isSubmitting = true;
     this.loginError = null;
     
-    try {
-      const { email, password } = this.loginForm.value;
-      const { requires2FA } = await this.authService.signIn(email, password);
-      
-      if (requires2FA) {
-        await this.router.navigate(['/auth/2fa-verify']);
-      } else {
-        await this.router.navigate(['/dashboard']);
+    const { email, password } = this.loginForm.value;
+
+    this.authService.login({ email, password }).pipe(
+      finalize(() => this.isSubmitting = false)
+    ).subscribe({
+      next: (response) => {
+        if (response.user) {
+          // If we have the user data in the response, navigate immediately
+          this.router.navigate(['/dashboard']);
+        } else {
+          // Wait for user data to be fetched
+          this.authService.currentUser$.subscribe(user => {
+            if (user) {
+              this.router.navigate(['/dashboard']);
+            }
+          });
+        }
+      },
+      error: (error: any) => {
+        this.loginError = error.error?.message || error.message || 'Email ou mot de passe incorrect';
       }
-    } catch (error: any) {
-      this.loginError = error.message || 'Une erreur est survenue lors de la connexion';
-    } finally {
-      this.isSubmitting = false;
-    }
+    });
   }
 }

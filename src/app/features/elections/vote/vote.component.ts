@@ -1,146 +1,65 @@
 import { Component, OnInit } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { ActivatedRoute, Router } from '@angular/router';
-import { FormBuilder, FormGroup, ReactiveFormsModule, Validators } from '@angular/forms';
-import { ElectionService } from '../../../core/services/election.service';
+import { ElectionService, Election } from '../../../core/services/election.service';
 import { VoteService } from '../../../core/services/vote.service';
-import { ValidationService } from '../../../core/services/validation.service';
-import QRCode from 'qrcode';
-import { jsPDF } from 'jspdf';
-import html2canvas from 'html2canvas';
+import { Candidature } from '../../../core/services/candidature.service';
 
 @Component({
   selector: 'app-vote',
   standalone: true,
-  imports: [CommonModule, ReactiveFormsModule],
+  imports: [CommonModule],
   template: `
     <div class="vote-container">
-      <!-- Étape de vérification d'éligibilité -->
-      <div class="verification-step" *ngIf="currentStep === 'verification'">
-        <div class="step-header">
-          <h2>Vérification d'éligibilité</h2>
-          <p>Nous vérifions votre éligibilité pour cette élection</p>
-        </div>
-
-        <div class="verification-status" *ngIf="isVerifying">
-          <div class="spinner"></div>
-          <p>Vérification en cours...</p>
-        </div>
-
-        <div class="verification-error" *ngIf="verificationError">
-          <div class="error-icon">❌</div>
-          <h3>Non éligible</h3>
-          <p>{{ verificationError }}</p>
-          <button class="btn btn-outline" routerLink="/elections">Retour aux élections</button>
-        </div>
+      <!-- Loading State -->
+      <div *ngIf="isLoading" class="loading-state">
+        <div class="spinner"></div>
+        <p>Chargement de l'élection...</p>
       </div>
 
-      <!-- Étape du vote -->
-      <div class="voting-step" *ngIf="currentStep === 'voting'">
-        <div class="step-header">
-          <h2>{{ election?.title }}</h2>
-          <p>Sélectionnez votre candidat</p>
+      <!-- Error State -->
+      <div *ngIf="errorMessage" class="error-message">
+        {{ errorMessage }}
+      </div>
+
+      <!-- Vote Content -->
+      <div *ngIf="!isLoading && !errorMessage" class="vote-content">
+        <div class="vote-header">
+          <h2>{{ election?.titre }}</h2>
+          <p>Sélectionnez votre choix de vote</p>
         </div>
 
-        <div class="candidates-list">
-          <div *ngFor="let candidate of election?.candidates" 
-               class="candidate-card"
-               [class.selected]="selectedCandidate?.id === candidate.id"
-               (click)="selectCandidate(candidate)">
+        <!-- Vote Blanc Option -->
+        <div class="vote-option" 
+             [class.selected]="isBlankVote" 
+             (click)="selectBlankVote()">
+          <h3>Vote Blanc</h3>
+          <p>Choisir cette option pour un vote blanc</p>
+        </div>
+
+        <!-- Candidats -->
+        <div class="candidates-list" *ngIf="!isBlankVote">
+          <div *ngIf="validCandidatures.length === 0 && !isBlankVote" class="no-candidates-message">
+            <p>Aucun candidat validé pour cette élection.</p>
+          </div>
+          <div *ngFor="let candidature of validCandidatures" 
+               class="candidate-option" 
+               [class.selected]="selectedCandidature?.id === candidature.id"
+               (click)="selectCandidate(candidature)">
             <div class="candidate-info">
-              <h3>{{ candidate.name }}</h3>
-              <p>{{ candidate.position }}</p>
-            </div>
-            <div class="selection-indicator">
-              <div class="checkbox" [class.checked]="selectedCandidate?.id === candidate.id">
-                <span *ngIf="selectedCandidate?.id === candidate.id">✓</span>
-              </div>
+              <h3>{{ candidature.candidat?.nom }} {{ candidature.candidat?.prenom }}</h3>
+              <p class="programme">{{ candidature.programme }}</p>
             </div>
           </div>
         </div>
 
-        <div class="voting-actions">
-          <button class="btn btn-outline" (click)="cancelVote()">Annuler</button>
+        <!-- Actions -->
+        <div class="vote-actions">
+          <button class="btn btn-secondary" (click)="cancel()">Annuler</button>
           <button class="btn btn-primary" 
-                  [disabled]="!selectedCandidate"
-                  (click)="proceedToConfirmation()">
-            Continuer
-          </button>
-        </div>
-      </div>
-
-      <!-- Étape de confirmation -->
-      <div class="confirmation-step" *ngIf="currentStep === 'confirmation'">
-        <div class="step-header">
-          <h2>Confirmation du vote</h2>
-          <p>Vérifiez votre choix avant de confirmer</p>
-        </div>
-
-        <div class="confirmation-details">
-          <div class="detail-group">
-            <span class="detail-label">Élection</span>
-            <span class="detail-value">{{ election?.title }}</span>
-          </div>
-          <div class="detail-group">
-            <span class="detail-label">Candidat sélectionné</span>
-            <span class="detail-value">{{ selectedCandidate?.name }}</span>
-          </div>
-          <div class="detail-group">
-            <span class="detail-label">Date du vote</span>
-            <span class="detail-value">{{ currentDate | date:'dd/MM/yyyy HH:mm' }}</span>
-          </div>
-        </div>
-
-        <div class="confirmation-warning">
-          <p>⚠️ Cette action est définitive et ne pourra pas être modifiée.</p>
-        </div>
-
-        <div class="confirmation-actions">
-          <button class="btn btn-outline" (click)="currentStep = 'voting'">
-            Modifier mon choix
-          </button>
-          <button class="btn btn-primary" (click)="submitVote()">
-            Confirmer mon vote
-          </button>
-        </div>
-      </div>
-
-      <!-- Étape du reçu -->
-      <div class="receipt-step" *ngIf="currentStep === 'receipt'" #receiptSection>
-        <div class="step-header">
-          <h2>Vote enregistré avec succès</h2>
-          <p>Votre vote a été comptabilisé</p>
-        </div>
-
-        <div class="receipt-card">
-          <div class="receipt-header">
-            <h3>Reçu de vote</h3>
-            <span class="receipt-date">{{ currentDate | date:'dd/MM/yyyy HH:mm' }}</span>
-          </div>
-
-          <div class="receipt-details">
-            <div class="detail-group">
-              <span class="detail-label">Identifiant du vote</span>
-              <span class="detail-value">{{ voteId }}</span>
-            </div>
-            <div class="detail-group">
-              <span class="detail-label">Élection</span>
-              <span class="detail-value">{{ election?.title }}</span>
-            </div>
-            <div class="qr-code" *ngIf="qrCodeUrl">
-              <img [src]="qrCodeUrl" alt="QR Code du vote">
-            </div>
-          </div>
-
-          <div class="receipt-footer">
-            <p>Ce reçu confirme votre participation à l'élection.</p>
-          </div>
-        </div>
-
-        <div class="receipt-actions">
-      
-          <button class="btn btn-primary" routerLink="/elections">
-            Retour aux élections
+                  [disabled]="!canVote()" 
+                  (click)="submitVote()">
+            {{ isSubmitting ? 'Vote en cours...' : 'Voter' }}
           </button>
         </div>
       </div>
@@ -150,289 +69,263 @@ import html2canvas from 'html2canvas';
     .vote-container {
       max-width: 800px;
       margin: 0 auto;
-      padding: 32px;
+      padding: 20px;
     }
 
-    .step-header {
+    .loading-state {
       text-align: center;
-      margin-bottom: 32px;
-    }
-
-    .step-header h2 {
-      font-size: 1.8rem;
-      color: var(--primary);
-      margin-bottom: 8px;
-    }
-
-    .step-header p {
-      color: var(--gray-500);
-    }
-
-    /* Styles de vérification */
-    .verification-status {
-      text-align: center;
-      padding: 48px;
+      padding: 40px;
     }
 
     .spinner {
       width: 40px;
       height: 40px;
-      border: 4px solid rgba(63, 81, 181, 0.1);
+      border: 4px solid rgba(0, 0, 0, 0.1);
+      border-left-color: #2196F3;
       border-radius: 50%;
-      border-top-color: var(--secondary);
       animation: spin 1s linear infinite;
-      margin: 0 auto 16px;
-    }
-
-    .verification-error {
-      text-align: center;
-      padding: 32px;
-      background: rgba(244, 67, 54, 0.1);
-      border-radius: var(--border-radius);
-    }
-
-    .error-icon {
-      font-size: 2rem;
-      margin-bottom: 16px;
-    }
-
-    /* Styles des candidats */
-    .candidates-list {
-      display: grid;
-      gap: 16px;
-      margin-bottom: 32px;
-    }
-
-    .candidate-card {
-      display: flex;
-      justify-content: space-between;
-      align-items: center;
-      padding: 20px;
-      background: white;
-      border: 2px solid var(--gray-200);
-      border-radius: var(--border-radius);
-      cursor: pointer;
-      transition: var(--transition);
-    }
-
-    .candidate-card:hover {
-      border-color: var(--secondary);
-      transform: translateY(-2px);
-    }
-
-    .candidate-card.selected {
-      border-color: var(--secondary);
-      background: rgba(63, 81, 181, 0.05);
-    }
-
-    .candidate-info h3 {
-      margin: 0 0 4px;
-      color: var(--primary);
-    }
-
-    .candidate-info p {
-      margin: 0;
-      color: var(--gray-500);
-    }
-
-    .checkbox {
-      width: 24px;
-      height: 24px;
-      border: 2px solid var(--gray-300);
-      border-radius: 50%;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      transition: var(--transition);
-    }
-
-    .checkbox.checked {
-      background: var(--secondary);
-      border-color: var(--secondary);
-      color: white;
-    }
-
-    /* Styles de confirmation */
-    .confirmation-details {
-      background: white;
-      padding: 24px;
-      border-radius: var(--border-radius);
-      margin-bottom: 24px;
-    }
-
-    .detail-group {
-      display: flex;
-      justify-content: space-between;
-      padding: 12px 0;
-      border-bottom: 1px solid var(--gray-200);
-    }
-
-    .detail-group:last-child {
-      border-bottom: none;
-    }
-
-    .detail-label {
-      color: var(--gray-500);
-    }
-
-    .detail-value {
-      font-weight: 500;
-      color: var(--primary);
-    }
-
-    .confirmation-warning {
-      text-align: center;
-      padding: 16px;
-      background: rgba(255, 152, 0, 0.1);
-      border-radius: var(--border-radius);
-      margin-bottom: 24px;
-    }
-
-    /* Styles du reçu */
-    .receipt-card {
-      background: white;
-      padding: 32px;
-      border-radius: var(--border-radius);
-      box-shadow: var(--shadow-md);
-      margin-bottom: 32px;
-    }
-
-    .receipt-header {
-      display: flex;
-      justify-content: space-between;
-      align-items: center;
-      margin-bottom: 24px;
-      padding-bottom: 16px;
-      border-bottom: 1px solid var(--gray-200);
-    }
-
-    .receipt-date {
-      color: var(--gray-500);
-    }
-
-    .qr-code {
-      text-align: center;
-      margin: 24px 0;
-    }
-
-    .qr-code img {
-      max-width: 200px;
-      height: auto;
-    }
-
-    .receipt-footer {
-      margin-top: 24px;
-      padding-top: 16px;
-      border-top: 1px solid var(--gray-200);
-      text-align: center;
-      color: var(--gray-500);
-    }
-
-    /* Styles des actions */
-    .voting-actions,
-    .confirmation-actions,
-    .receipt-actions {
-      display: flex;
-      justify-content: flex-end;
-      gap: 16px;
-      margin-top: 32px;
+      margin: 0 auto 20px;
     }
 
     @keyframes spin {
       to { transform: rotate(360deg); }
     }
 
-    @media (max-width: 768px) {
-      .vote-container {
-        padding: 16px;
-      }
+    .error-message {
+      color: #f44336;
+      padding: 15px;
+      margin: 10px 0;
+      background-color: #ffebee;
+      border-radius: 4px;
+    }
 
-      .voting-actions,
-      .confirmation-actions,
-      .receipt-actions {
-        flex-direction: column;
-      }
+    .vote-header {
+      text-align: center;
+      margin-bottom: 30px;
+    }
 
-      .voting-actions button,
-      .confirmation-actions button,
-      .receipt-actions button {
-        width: 100%;
-      }
+    .vote-header h2 {
+      margin: 0 0 10px;
+      color: #1976D2;
+    }
+
+    .vote-option, .candidate-option {
+      padding: 20px;
+      margin: 10px 0;
+      border: 2px solid #e0e0e0;
+      border-radius: 8px;
+      cursor: pointer;
+      transition: all 0.3s ease;
+    }
+
+    .vote-option:hover, .candidate-option:hover {
+      border-color: #2196F3;
+      background-color: #f5f5f5;
+    }
+
+    .selected {
+      border-color: #2196F3;
+      background-color: #e3f2fd;
+    }
+
+    .candidate-info h3 {
+      margin: 0 0 10px;
+      color: #1976D2;
+    }
+
+    .programme {
+      color: #616161;
+      line-height: 1.5;
+      margin: 0;
+    }
+
+    .vote-actions {
+      margin-top: 30px;
+      display: flex;
+      justify-content: flex-end;
+      gap: 10px;
+    }
+
+    .btn {
+      padding: 10px 20px;
+      border-radius: 4px;
+      border: none;
+      cursor: pointer;
+      font-weight: 500;
+      transition: all 0.3s ease;
+    }
+
+    .btn-primary {
+      background-color: #2196F3;
+      color: white;
+    }
+
+    .btn-primary:hover {
+      background-color: #1976D2;
+    }
+
+    .btn-primary:disabled {
+      background-color: #90CAF9;
+      cursor: not-allowed;
+    }
+
+    .btn-secondary {
+      background-color: #9E9E9E;
+      color: white;
+    }
+
+    .btn-secondary:hover {
+      background-color: #757575;
+    }
+
+    .no-candidates-message {
+      padding: 20px;
+      margin: 10px 0;
+      border: 2px dashed #e0e0e0;
+      border-radius: 8px;
+      text-align: center;
+      color: #616161;
     }
   `]
 })
 export class VoteComponent implements OnInit {
-  currentStep: 'verification' | 'voting' | 'confirmation' | 'receipt' = 'verification';
-  isVerifying = false;
-  verificationError: string | null = null;
-  election: any = null;
-  selectedCandidate: any = null;
-  currentDate = new Date();
-  voteId: string = '';
-  qrCodeUrl: string = '';
+  election: Election | null = null;
+  selectedCandidature: Candidature | null = null;
+  isBlankVote = false;
+  errorMessage: string | null = null;
+  isLoading = true;
+  isSubmitting = false;
 
   constructor(
     private route: ActivatedRoute,
     private router: Router,
     private electionService: ElectionService,
-    private voteService: VoteService,
-    private validationService: ValidationService
+    private voteService: VoteService
   ) {}
 
-  async ngOnInit() {
-    try {
-      const electionId = this.route.snapshot.paramMap.get('id');
-      if (!electionId) {
-        throw new Error('ID de l\'élection non fourni');
+  ngOnInit() {
+    const electionId = this.route.snapshot.paramMap.get('id');
+    if (!electionId) {
+      this.errorMessage = 'ID de l\'élection non fourni';
+      this.isLoading = false;
+      return;
+    }
+
+    // Vérifier si l'utilisateur a déjà voté
+    this.voteService.hasVoted(Number(electionId)).subscribe({
+      next: (hasVoted) => {
+        if (hasVoted) {
+          this.errorMessage = 'Vous avez déjà voté pour cette élection';
+          this.isLoading = false;
+          return;
+        }
+        
+        // Charger les détails de l'élection
+        this.loadElection(Number(electionId));
+      },
+      error: (error) => {
+        if (error.status === 403) {
+          this.errorMessage = error.error?.message || 'Vous n\'êtes pas autorisé à participer à cette élection.';
+        } else if (error.status === 404) {
+          this.errorMessage = 'Élection non trouvée pour la vérification du vote.';
+        } else {
+          this.errorMessage = 'Erreur lors de la vérification du statut de vote.';
+        }
+        this.isLoading = false;
+        console.error('Error checking vote status:', error);
       }
+    });
+  }
 
-      // Vérifier l'éligibilité
-      this.isVerifying = true;
-      const eligibility = await this.validationService.checkEligibility(
-        'current-user-id',
-        electionId
-      );
-
-      if (!eligibility.eligible) {
-        this.verificationError = eligibility.reason || 'Vous n\'êtes pas éligible pour cette élection';
-        return;
+  private loadElection(electionId: number) {
+    this.electionService.getElection(electionId).subscribe({
+      next: (election) => {
+        this.election = election;
+        
+        // Vérifier si l'élection est en cours
+        const now = new Date();
+        const startDate = new Date(election.date_debut_vote);
+        const endDate = new Date(election.date_fin_vote);
+        
+        if (election.statut !== 'EN_COURS') {
+          this.errorMessage = 'Cette élection n\'est pas en cours';
+        } else if (now < startDate) {
+          this.errorMessage = 'La période de vote n\'a pas encore commencé';
+        } else if (now > endDate) {
+          this.errorMessage = 'La période de vote est terminée';
+        }
+      },
+      error: (error) => {
+        this.errorMessage = 'Erreur lors du chargement de l\'élection';
+        console.error('Error loading election:', error);
+      },
+      complete: () => {
+        this.isLoading = false;
       }
+    });
+  }
 
-      // Charger les détails de l'élection
-      this.election = await this.electionService.getElections();
-      this.currentStep = 'voting';
-    } catch (error: any) {
-      this.verificationError = error.message;
-    } finally {
-      this.isVerifying = false;
+  get validCandidatures(): Candidature[] {
+    if (!this.election || !this.election.candidatures) {
+      return [];
     }
+    return this.election.candidatures.filter(c => c.statut === 'VALIDEE');
   }
 
-  selectCandidate(candidate: any) {
-    this.selectedCandidate = candidate;
+  selectCandidate(candidature: Candidature) {
+    this.selectedCandidature = candidature;
+    this.isBlankVote = false;
   }
 
-  proceedToConfirmation() {
-    if (this.selectedCandidate) {
-      this.currentStep = 'confirmation';
+  selectBlankVote() {
+    this.isBlankVote = true;
+    this.selectedCandidature = null;
+  }
+
+  canVote(): boolean {
+    if (this.isSubmitting) return false;
+    if (this.isBlankVote) return true;
+    return this.selectedCandidature !== null && this.validCandidatures.some(c => c.id === this.selectedCandidature?.id);
+  }
+
+  submitVote() {
+    if (!this.election || !this.canVote()) {
+      if (!this.election) this.errorMessage = "Les informations de l'élection n'ont pas pu être chargées.";
+      return;
     }
+
+    this.isSubmitting = true;
+    this.errorMessage = null;
+
+    const voteData = {
+      election_id: this.election.id,
+      candidature_id: this.selectedCandidature?.id || null,
+      vote_blanc: this.isBlankVote
+    };
+
+    this.voteService.submitVote(voteData).subscribe({
+      next: (response) => {
+        console.log('Vote submitted successfully:', response);
+        this.router.navigate(['/dashboard/elections'], { queryParams: { voteSuccess: true } });
+      },
+      error: (error) => {
+        this.isSubmitting = false;
+        if (error.error?.errors) {
+          const messages = Object.values(error.error.errors).flat();
+          this.errorMessage = messages.join(' ');
+        } else if (error.error?.message) {
+          this.errorMessage = error.error.message;
+        } else if (error.status === 0 || error.status === 503) {
+          this.errorMessage = 'Service de vote indisponible. Veuillez réessayer plus tard.';
+        } else {
+          this.errorMessage = 'Une erreur est survenue lors de la soumission du vote.';
+        }
+        console.error('Error submitting vote:', error);
+      }
+    });
   }
 
-  cancelVote() {
-    this.router.navigate(['/elections']);
+  cancel() {
+    this.router.navigate(['/dashboard/elections']);
   }
-
-  async submitVote() {
-    try {
-      if (!this.election || !this.selectedCandidate) return;
-
-      const vote = await this.voteService.submitVote(
-        this.election.id,
-        this.selectedCandidate.id
-      );
-    } catch (error) {
-      console.error('Erreur lors du vote:', error);
-    }
-  }
-
 }

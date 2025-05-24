@@ -1,6 +1,7 @@
 import { Component, OnInit } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { ElectionService } from '../../core/services/election.service';
+import { StatsService } from '../../core/services/stats.service';
 import Chart from 'chart.js/auto';
 
 @Component({
@@ -53,8 +54,8 @@ import Chart from 'chart.js/auto';
               <span class="stat-label">Participation</span>
             </div>
             <div class="stat-item">
-              <span class="stat-value">{{ election.candidates.length }}</span>
-              <span class="stat-label">Candidats</span>
+              <span class="stat-value">{{ election.blankVotes }}</span>
+              <span class="stat-label">Votes blancs</span>
             </div>
           </div>
 
@@ -63,6 +64,19 @@ import Chart from 'chart.js/auto';
           </div>
 
           <div class="candidates-list">
+            <!-- Vote blanc -->
+            <div class="candidate-result blank-vote">
+              <div class="candidate-info">
+                <h3>Votes blancs</h3>
+                <p>Bulletins sans candidat sélectionné</p>
+              </div>
+              <div class="vote-count">
+                <span class="percentage">{{ election.blankVotePercentage }}%</span>
+                <span class="votes">({{ election.blankVotes }} votes)</span>
+              </div>
+            </div>
+
+            <!-- Résultats des candidats -->
             <div *ngFor="let candidate of election.candidates" class="candidate-result">
               <div class="candidate-info">
                 <h3>{{ candidate.name }}</h3>
@@ -220,6 +234,12 @@ import Chart from 'chart.js/auto';
       border-bottom: none;
     }
 
+    .candidate-result.blank-vote {
+      background: var(--gray-50);
+      border-radius: var(--border-radius);
+      margin-bottom: 16px;
+    }
+
     .candidate-info h3 {
       margin: 0 0 4px;
       font-size: 1.1rem;
@@ -275,82 +295,78 @@ import Chart from 'chart.js/auto';
 export class ResultsComponent implements OnInit {
   completedElections: any[] = [];
 
-  constructor(private electionService: ElectionService) {}
+  constructor(
+    private electionService: ElectionService,
+    private statsService: StatsService
+  ) {}
 
   async ngOnInit() {
     await this.loadElections();
-    this.initializeCharts();
   }
 
   async loadElections() {
     try {
-      // Données de démonstration
-      this.completedElections = [
-        {
-          id: 1,
-          title: 'Chef du Département Informatique',
-          endDate: new Date('2025-01-15'),
-          totalVoters: 45,
-          participationRate: 87,
-          candidates: [
-            { name: 'Dr. Martin', position: 'Professeur', votes: 25, percentage: 55.6 },
-            { name: 'Dr. Bernard', position: 'Maître de conférences', votes: 20, percentage: 44.4 }
-          ]
-        },
-        {
-          id: 2,
-          title: 'Directeur UFR Sciences',
-          endDate: new Date('2025-02-01'),
-          totalVoters: 120,
-          participationRate: 92,
-          candidates: [
-            { name: 'Pr. Dubois', position: 'Professeur', votes: 45, percentage: 37.5 },
-            { name: 'Pr. Laurent', position: 'Professeur', votes: 40, percentage: 33.3 },
-            { name: 'Dr. Moreau', position: 'Professeur', votes: 35, percentage: 29.2 }
-          ]
-        }
-      ];
+      const elections = await this.electionService.getElections().toPromise();
+      if (!elections) {
+        console.error('No elections data received');
+        return;
+      }
+      
+      this.completedElections = elections.filter(e => e.statut === 'FERMEE');
+      
+      // Charger les statistiques pour chaque élection
+      for (const election of this.completedElections) {
+        const stats = await this.statsService.getElectionStats(election.id);
+        election.totalVoters = stats.totalVoters;
+        election.participationRate = stats.participationRate;
+        election.blankVotes = stats.blankVotes;
+        election.blankVotePercentage = stats.blankVotePercentage;
+        election.candidates = stats.votesPerCandidate;
+        
+        this.createChart(election, stats);
+      }
     } catch (error) {
-      console.error('Erreur lors du chargement des résultats:', error);
+      console.error('Erreur lors du chargement des élections:', error);
+      this.completedElections = [];
     }
   }
 
-  initializeCharts() {
-    this.completedElections.forEach(election => {
-      const ctx = document.getElementById(`chart-${election.id}`) as HTMLCanvasElement;
-      if (ctx) {
-        new Chart(ctx, {
-          type: 'bar',
-          data: {
-            labels: election.candidates.map((c: any) => c.name),
-            datasets: [{
-              label: 'Votes',
-              data: election.candidates.map((c: any) => c.votes),
-              backgroundColor: [
-                'rgba(63, 81, 181, 0.8)',
-                'rgba(0, 229, 255, 0.8)',
-                'rgba(76, 175, 80, 0.8)'
-              ],
-              borderColor: [
-                'rgba(63, 81, 181, 1)',
-                'rgba(0, 229, 255, 1)',
-                'rgba(76, 175, 80, 1)'
-              ],
-              borderWidth: 1
-            }]
-          },
-          options: {
-            responsive: true,
-            maintainAspectRatio: false,
-            scales: {
-              y: {
-                beginAtZero: true
-              }
-            }
+  private createChart(election: any, stats: any) {
+    const ctx = document.getElementById('chart-' + election.id) as HTMLCanvasElement;
+    if (!ctx) return;
+
+    const labels = ['Votes blancs', ...stats.votesPerCandidate.map((c: any) => c.candidateName)];
+    const data = [stats.blankVotes, ...stats.votesPerCandidate.map((c: any) => c.votes)];
+    const colors = ['#E0E0E0', ...this.generateColors(stats.votesPerCandidate.length)];
+
+    new Chart(ctx, {
+      type: 'doughnut',
+      data: {
+        labels: labels,
+        datasets: [{
+          data: data,
+          backgroundColor: colors,
+          borderWidth: 1
+        }]
+      },
+      options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        plugins: {
+          legend: {
+            display: false
           }
-        });
+        }
       }
     });
+  }
+
+  private generateColors(count: number): string[] {
+    const colors = [
+      '#3F51B5', '#2196F3', '#03A9F4', '#00BCD4', '#009688',
+      '#4CAF50', '#8BC34A', '#CDDC39', '#FFC107', '#FF9800'
+    ];
+    return Array(count).fill(0).map((_, i) => colors[i % colors.length]);
   }
 
   filterByYear(event: any) {
@@ -362,10 +378,10 @@ export class ResultsComponent implements OnInit {
   }
 
   downloadResults(election: any) {
-    // Implémenter le téléchargement du PV
+    // Implémenter le téléchargement des résultats
   }
 
   viewDetails(election: any) {
-    // Implémenter l'affichage des détails
+    // Implémenter la vue détaillée
   }
 }

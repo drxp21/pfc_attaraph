@@ -6,6 +6,8 @@ import { firstValueFrom } from 'rxjs';
 export interface ElectionStats {
   totalVoters: number;
   participationRate: number;
+  blankVotes: number;
+  blankVotePercentage: number;
   votesPerCandidate: {
     candidateId: string;
     candidateName: string;
@@ -15,6 +17,7 @@ export interface ElectionStats {
   votingTrends: {
     date: string;
     votes: number;
+    blankVotes: number;
   }[];
 }
 
@@ -22,9 +25,12 @@ export interface GlobalStats {
   totalElections: number;
   totalVoters: number;
   averageParticipation: number;
+  totalBlankVotes: number;
+  averageBlankVoteRate: number;
   departmentStats: {
     department: string;
     participationRate: number;
+    blankVoteRate: number;
     totalElections: number;
   }[];
 }
@@ -33,18 +39,26 @@ export interface GlobalStats {
   providedIn: 'root'
 })
 export class StatsService {
-  constructor(private http: HttpClient) {}
+  private apiUrl = `${environment.apiUrl}/stats`;
 
-  async getElectionStats(electionId: string): Promise<ElectionStats> {
-    return firstValueFrom(this.http.get<ElectionStats>(
-      `${environment.apiUrl}/stats/elections/${electionId}`
-    ));
+  constructor(private http: HttpClient) { }
+
+  async getElectionStats(electionId: number): Promise<ElectionStats> {
+    return firstValueFrom(
+      this.http.get<ElectionStats>(`${this.apiUrl}/elections/${electionId}`)
+    );
   }
 
   async getGlobalStats(): Promise<GlobalStats> {
-    return firstValueFrom(this.http.get<GlobalStats>(
-      `${environment.apiUrl}/stats/global`
-    ));
+    return firstValueFrom(
+      this.http.get<GlobalStats>(`${this.apiUrl}/global`)
+    );
+  }
+
+  async getDepartmentStats(departmentId: number): Promise<GlobalStats> {
+    return firstValueFrom(
+      this.http.get<GlobalStats>(`${this.apiUrl}/departments/${departmentId}`)
+    );
   }
 
   async generateReport(electionId: string, format: 'pdf' | 'csv'): Promise<Blob> {

@@ -1,30 +1,23 @@
-import { Injectable } from '@angular/core';
-import { Router } from '@angular/router';
+import { inject } from '@angular/core';
+import { CanActivateFn, Router } from '@angular/router';
 import { AuthService } from '../services/auth.service';
+import { map, take, filter } from 'rxjs/operators';
 
-@Injectable({
-  providedIn: 'root'
-})
-export class AuthGuard {
-  constructor(
-    private authService: AuthService,
-    private router: Router
-  ) {}
+export const authGuard: CanActivateFn = (route, state) => {
+  const authService = inject(AuthService);
+  const router = inject(Router);
 
-  async canActivate(): Promise<boolean> {
-    if (this.authService.isAuthenticated()) {
-      // Vérifier si l'utilisateur nécessite une vérification 2FA
-      const requires2FA = await this.authService.requires2FA$.pipe().toPromise();
-      
-      if (requires2FA) {
-        await this.router.navigate(['/auth/2fa-verify']);
-        return false;
+  return authService.isLoading$.pipe(
+    filter(isLoading => !isLoading),
+    take(1),
+    map(() => {
+      if (authService.isAuthenticated()) {
+        return true;
       }
-      
-      return true;
-    }
 
-    await this.router.navigate(['/auth/login']);
-    return false;
-  }
-}
+      // Not authenticated, redirect to login
+      router.navigate(['/auth/login']);
+      return false;
+    })
+  );
+};

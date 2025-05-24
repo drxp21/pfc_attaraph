@@ -1,0 +1,104 @@
+<!-- src/app/features/admin/components/departements/departements.component.html -->
+<div class="departements-container">
+  <div class="page-header">
+    <h2>Gestion des Départements</h2>
+    <p>Ajouter, modifier ou supprimer des départements</p>
+  </div>
+
+  <!-- Success and Error Messages -->
+  <div *ngIf="successMessage" class="alert alert-success">
+    {{ successMessage }}
+  </div>
+  <div *ngIf="errorMessage" class="alert alert-danger">
+    {{ errorMessage }}
+  </div>
+
+  <!-- Form for Adding/Editing Departement -->
+  <div class="card form-card mb-4">
+    <div class="card-body">
+      <h3 class="card-title mb-3">{{ isEditing ? 'Modifier le Département' : 'Ajouter un Nouveau Département' }}</h3>
+      <form [formGroup]="departementForm" (ngSubmit)="onSubmit()">
+        <div class="row">
+          <div class="col-md-6 mb-3">
+            <label for="nom" class="form-label">Nom du Département</label>
+            <input type="text" id="nom" formControlName="nom" class="form-control"
+                   [ngClass]="{ 'is-invalid': departementForm.get('nom')?.invalid && departementForm.get('nom')?.touched }">
+            <div *ngIf="departementForm.get('nom')?.invalid && departementForm.get('nom')?.touched" class="invalid-feedback">
+              <div *ngIf="departementForm.get('nom')?.errors?.['required']">Le nom est requis.</div>
+              <div *ngIf="departementForm.get('nom')?.errors?.['maxlength']">Le nom ne doit pas dépasser 255 caractères.</div>
+            </div>
+          </div>
+
+          <div class="col-md-6 mb-3">
+            <label for="code" class="form-label">Code du Département</label>
+            <input type="text" id="code" formControlName="code" class="form-control"
+                   [ngClass]="{ 'is-invalid': departementForm.get('code')?.invalid && departementForm.get('code')?.touched }">
+            <div *ngIf="departementForm.get('code')?.invalid && departementForm.get('code')?.touched" class="invalid-feedback">
+              <div *ngIf="departementForm.get('code')?.errors?.['required']">Le code est requis.</div>
+              <div *ngIf="departementForm.get('code')?.errors?.['maxlength']">Le code ne doit pas dépasser 50 caractères.</div>
+            </div>
+          </div>
+        </div>
+
+        <div class="form-actions mt-3">
+          <button type="submit" class="btn btn-primary" [disabled]="departementForm.invalid || isLoading">
+            <span *ngIf="isLoading" class="spinner-border spinner-border-sm" role="status" aria-hidden="true"></span>
+            {{ isLoading ? (isEditing ? 'Mise à jour...' : 'Ajout...') : (isEditing ? 'Mettre à jour' : 'Ajouter le Département') }}
+          </button>
+          <button type="button" class="btn btn-outline-secondary ms-2" (click)="cancelEdit()" *ngIf="isEditing">
+            Annuler la modification
+          </button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- List of Departements -->
+  <div class="card list-card">
+    <div class="card-header">
+      <h4 class="card-title mb-0">Liste des Départements</h4>
+    </div>
+    <div class="card-body">
+      <div *ngIf="isLoading && departements.length === 0" class="text-center p-4">
+        <div class="spinner-border text-primary" role="status">
+          <span class="visually-hidden">Chargement...</span>
+        </div>
+        <p class="mt-2">Chargement des départements...</p>
+      </div>
+
+      <div *ngIf="!isLoading && departements.length === 0" class="alert alert-info">
+        Aucun département n'a été trouvé. Vous pouvez en ajouter un en utilisant le formulaire ci-dessus.
+      </div>
+
+      <div class="table-responsive" *ngIf="departements.length > 0">
+        <table class="table table-hover align-middle">
+          <thead>
+            <tr>
+              <th>ID</th>
+              <th>Nom</th>
+              <th>Code</th>
+              <th>Créé le</th>
+              <th>Actions</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr *ngFor="let dept of departements">
+              <td>{{ dept.id }}</td>
+              <td>{{ dept.nom }}</td>
+              <td>{{ dept.code }}</td>
+              <td>{{ dept.created_at | date:'dd/MM/yyyy HH:mm' }}</td>
+              <td>
+                <button class="btn btn-sm btn-outline-primary me-2" (click)="editDepartement(dept)" title="Modifier">
+                  <i class="bi bi-pencil-square"></i> Modifier
+                </button>
+                <button class="btn btn-sm btn-outline-danger" (click)="deleteDepartement(dept.id)" title="Supprimer">
+                  <i class="bi bi-trash"></i> Supprimer
+                </button>
+              </td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+</div> 

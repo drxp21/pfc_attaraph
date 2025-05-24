@@ -1,6 +1,6 @@
 import { Component } from '@angular/core';
 import { CommonModule } from '@angular/common';
-import { VoteService } from '../../../../core/services/vote.service';
+import { VoteService, Vote } from '../../../../core/services/vote.service';
 
 @Component({
   selector: 'app-vote-history',
@@ -13,60 +13,38 @@ import { VoteService } from '../../../../core/services/vote.service';
         <p>Consultez l'historique de vos participations aux élections</p>
       </div>
 
-      <!-- Filtres -->
-      <div class="filters">
-        <div class="filter-group">
-          <label>Période</label>
-          <select class="form-control" (change)="filterByPeriod($event)">
-            <option value="all">Toutes les périodes</option>
-            <option value="month">Ce mois</option>
-            <option value="year">Cette année</option>
-          </select>
-        </div>
-
-        <div class="filter-group">
-          <label>Type d'élection</label>
-          <select class="form-control" (change)="filterByType($event)">
-            <option value="all">Tous les types</option>
-            <option value="department">Chef de département</option>
-            <option value="ufr">Directeur UFR</option>
-            <option value="vice-rector">Vice-Recteur</option>
-          </select>
-        </div>
-      </div>
-
       <!-- Timeline des votes -->
       <div class="vote-timeline">
         <div *ngFor="let vote of voteHistory" class="timeline-item">
-          <div class="timeline-marker" [class]="vote.status"></div>
+          <div class="timeline-marker"></div>
           
           <div class="timeline-content">
             <div class="vote-header">
-              <h3>{{ vote.electionTitle }}</h3>
-              <span class="vote-date">{{ vote.date | date:'dd/MM/yyyy HH:mm' }}</span>
+              <h3>{{ vote.election?.titre }}</h3>
+              <span class="vote-date">{{ vote.date_vote | date:'dd/MM/yyyy HH:mm' }}</span>
             </div>
             
             <div class="vote-details">
               <div class="detail-item">
                 <span class="detail-label">Type d'élection</span>
-                <span class="detail-value">{{ vote.type }}</span>
+                <span class="detail-value">{{ vote.election?.type_election }}</span>
+              </div>
+
+              <div class="detail-item">
+                <span class="detail-label">Type de vote</span>
+                <span class="detail-value">{{ vote.vote_blanc ? 'Vote Blanc' : 'Vote pour un candidat' }}</span>
               </div>
               
-              <div class="detail-item">
-                <span class="detail-label">Statut</span>
-                <span class="status-badge" [class]="vote.status">
-                  {{ vote.status === 'confirmed' ? 'Confirmé' : 
-                     vote.status === 'pending' ? 'En attente' : 'Rejeté' }}
+              <div class="detail-item" *ngIf="!vote.vote_blanc && vote.candidature">
+                <span class="detail-label">Candidat</span>
+                <span class="detail-value">
+                  {{ vote.candidature.candidat.nom }} {{ vote.candidature.candidat.prenom }}
                 </span>
               </div>
             </div>
 
             <div class="vote-actions">
-              <button class="btn btn-outline btn-sm" (click)="viewDetails(vote)">
-                Voir les détails
-              </button>
-              <button class="btn btn-outline btn-sm" *ngIf="vote.status === 'confirmed'"
-                      (click)="downloadReceipt(vote)">
+              <button class="btn btn-outline btn-sm" (click)="downloadReceipt(vote)">
                 Télécharger le reçu
               </button>
             </div>
@@ -84,14 +62,6 @@ import { VoteService } from '../../../../core/services/vote.service';
             <div class="stat-info">
               <span class="stat-value">{{ totalVotes }}</span>
               <span class="stat-label">Votes totaux</span>
-            </div>
-          </div>
-
-          <div class="stat-card">
-            <div class="stat-icon">✓</div>
-            <div class="stat-info">
-              <span class="stat-value">{{ participationRate }}%</span>
-              <span class="stat-label">Taux de participation</span>
             </div>
           </div>
 
@@ -125,38 +95,6 @@ import { VoteService } from '../../../../core/services/vote.service';
     .page-header p {
       margin: 8px 0 0;
       color: var(--gray-500);
-    }
-
-    .filters {
-      display: flex;
-      gap: 24px;
-      margin-bottom: 32px;
-    }
-
-    .filter-group {
-      flex: 1;
-    }
-
-    .filter-group label {
-      display: block;
-      margin-bottom: 8px;
-      font-weight: 500;
-      color: var(--primary);
-    }
-
-    .form-control {
-      width: 100%;
-      padding: 12px;
-      border: 1px solid var(--gray-300);
-      border-radius: var(--border-radius);
-      font-size: 1rem;
-      transition: var(--transition);
-    }
-
-    .form-control:focus {
-      border-color: var(--secondary);
-      outline: none;
-      box-shadow: 0 0 0 3px rgba(63, 81, 181, 0.1);
     }
 
     .vote-timeline {
@@ -342,10 +280,6 @@ import { VoteService } from '../../../../core/services/vote.service';
     }
 
     @media (max-width: 768px) {
-      .filters {
-        flex-direction: column;
-      }
-
       .vote-details {
         grid-template-columns: 1fr;
       }
@@ -361,48 +295,27 @@ import { VoteService } from '../../../../core/services/vote.service';
   `]
 })
 export class VoteHistoryComponent {
-  voteHistory: any[] = [];
+  voteHistory: Vote[] = [];
   totalVotes = 0;
-  participationRate = 0;
   lastVoteDate: Date | null = null;
 
   constructor(private voteService: VoteService) {
-    // Données de démonstration
-    this.voteHistory = [
-      {
-        id: 1,
-        electionTitle: 'Chef du Département Informatique',
-        type: 'Chef de département',
-        date: new Date(),
-        status: 'confirmed'
+    this.loadVoteHistory();
+  }
+
+  loadVoteHistory() {
+    this.voteService.getVoteHistory().subscribe({
+      next: (votes) => {
+        this.voteHistory = votes;
+        this.totalVotes = votes.length;
+        this.lastVoteDate = votes.length > 0 && votes[0].date_vote ? new Date(votes[0].date_vote) : null;
       },
-      {
-        id: 2,
-        electionTitle: 'Directeur UFR Sciences',
-        type: 'Directeur UFR',
-        date: new Date(Date.now() - 7 * 24 * 60 * 60 * 1000),
-        status: 'pending'
-      }
-    ];
-
-    this.totalVotes = this.voteHistory.length;
-    this.participationRate = 85;
-    this.lastVoteDate = new Date();
+      error: (err) => console.error('Error loading vote history:', err)
+    });
   }
 
-  filterByPeriod(event: any) {
-    // Implémenter le filtrage par période
-  }
-
-  filterByType(event: any) {
-    // Implémenter le filtrage par type
-  }
-
-  viewDetails(vote: any) {
-    // Implémenter l'affichage des détails
-  }
-
-  downloadReceipt(vote: any) {
-    // Implémenter le téléchargement du reçu
+  downloadReceipt(vote: Vote) {
+    // TODO: Implement receipt download
+    console.log('Downloading receipt for vote:', vote);
   }
 }

@@ -1,12 +1,14 @@
 import { Component } from '@angular/core';
 import { CommonModule } from '@angular/common';
-import { RouterModule } from '@angular/router';
+import { RouterModule, Router, ActivatedRoute } from '@angular/router';
 import { ElectionService, Election } from '../../../../core/services/election.service';
+import { FormatElectionTypePipe } from '../../../elections/elections-list/elections-list.component';
+import { VoteService } from '../../../../core/services/vote.service';
 
 @Component({
   selector: 'app-elections',
   standalone: true,
-  imports: [CommonModule, RouterModule],
+  imports: [CommonModule, RouterModule, FormatElectionTypePipe],
   template: `
     <div class="elections-container">
       <div class="page-header">
@@ -15,70 +17,46 @@ import { ElectionService, Election } from '../../../../core/services/election.se
       </div>
 
       <div class="elections-grid">
-        <div *ngFor="let election of elections" class="election-card">
+        <div *ngFor="let election of elections" class="election-card" (click)="viewElection(election)" style="cursor: pointer;">
           <div class="election-header">
-            <span class="election-type">{{ election.type }}</span>
-            <span class="election-status" [class]="election.status">
-              {{ election.status === 'active' ? 'En cours' : 
-                 election.status === 'draft' ? 'À venir' : 'Terminée' }}
+            <span class="election-type">{{ election.type_election | formatElectionType }}</span>
+            <span class="election-statut" [class]="election.statut">
+              {{ election.statut === 'EN_COURS' ? 'En cours' : 
+                 election.statut === 'BROUILLON' ? 'À venir' : 'Terminée' }}
             </span>
           </div>
 
-          <h3>{{ election.title }}</h3>
+          <h3>{{ election.titre }}</h3>
           <p class="election-description">{{ election.description }}</p>
 
           <div class="election-details">
             <div class="detail-item">
               <span class="detail-label">Début</span>
-              <span class="detail-value">{{ election.startDate | date:'dd/MM/yyyy' }}</span>
+              <span class="detail-value">{{ election.date_debut_vote | date:'dd/MM/yyyy' }}</span>
             </div>
             <div class="detail-item">
               <span class="detail-label">Fin</span>
-              <span class="detail-value">{{ election.endDate | date:'dd/MM/yyyy' }}</span>
+              <span class="detail-value">{{ election.date_fin_vote | date:'dd/MM/yyyy' }}</span>
             </div>
             <div class="detail-item">
               <span class="detail-label">Candidats</span>
-              <span class="detail-value">{{ election.candidates.length }}</span>
+              <span class="detail-value">{{ election.candidatures?.length || 0 }}</span>
             </div>
           </div>
 
           <div class="election-actions">
-            <button class="btn btn-primary" *ngIf="election.status === 'active'"
-                    (click)="vote(election)">
+            <button class="btn btn-primary" *ngIf="election.statut === 'EN_COURS'"
+                    (click)="vote(election); $event.stopPropagation()">
               Voter
             </button>
-            <button class="btn btn-outline" *ngIf="election.status === 'active'"
-                    (click)="viewCandidates(election)">
+            <button class="btn btn-outline" *ngIf="election.statut === 'EN_COURS'"
+                    (click)="viewCandidates(election); $event.stopPropagation()">
               Voir les candidats
             </button>
-            <button class="btn btn-outline" *ngIf="election.status === 'completed'"
-                    (click)="viewResults(election)">
+            <button class="btn btn-outline" *ngIf="election.statut === 'FERMEE'"
+                    (click)="viewResults(election); $event.stopPropagation()">
               Voir les résultats
             </button>
-          </div>
-        </div>
-      </div>
-
-      <!-- Modal pour le vote -->
-      <div class="modal" *ngIf="showVoteModal" (click)="closeModal()">
-        <div class="modal-content" (click)="$event.stopPropagation()">
-          <div class="modal-header">
-            <h3>Voter - {{ selectedElection?.title }}</h3>
-            <button class="btn-close" (click)="closeModal()">×</button>
-          </div>
-          <div class="modal-body">
-            <div class="candidates-list">
-              <div *ngFor="let candidate of selectedElection?.candidates" 
-                   class="candidate-item">
-                <div class="candidate-info">
-                  <h4>{{ candidate.name }}</h4>
-                  <p>{{ candidate.position }}</p>
-                </div>
-                <button class="btn btn-primary" (click)="confirmVote(candidate)">
-                  Choisir
-                </button>
-              </div>
-            </div>
           </div>
         </div>
       </div>
@@ -136,24 +114,24 @@ import { ElectionService, Election } from '../../../../core/services/election.se
       color: var(--gray-500);
     }
 
-    .election-status {
+    .election-statut {
       padding: 4px 12px;
       border-radius: 20px;
       font-size: 0.85rem;
       font-weight: 500;
     }
 
-    .election-status.active {
+    .election-statut.active {
       background: rgba(76, 175, 80, 0.1);
       color: #4CAF50;
     }
 
-    .election-status.draft {
+    .election-statut.draft {
       background: rgba(255, 152, 0, 0.1);
       color: #FF9800;
     }
 
-    .election-status.completed {
+    .election-statut.completed {
       background: rgba(158, 158, 158, 0.1);
       color: #9E9E9E;
     }
@@ -288,10 +266,12 @@ import { ElectionService, Election } from '../../../../core/services/election.se
 })
 export class ElectionsComponent {
   elections: Election[] = [];
-  showVoteModal = false;
-  selectedElection: Election | null = null;
 
-  constructor(private electionService: ElectionService) {
+  constructor(
+    private electionService: ElectionService,
+    private router: Router,
+    private route: ActivatedRoute
+  ) {
     this.loadElections();
   }
 
@@ -302,33 +282,24 @@ export class ElectionsComponent {
     });
   }
 
-  vote(election: Election) {
-    this.selectedElection = election;
-    this.showVoteModal = true;
+  viewElection(election: Election, event?: Event) {
+    // Prevent event bubbling if this was called from a button click
+    if (event) {
+      event.stopPropagation();
+    }
+    this.router.navigate(['election', election.id], { relativeTo: this.route });
   }
 
-  confirmVote(candidate: any) {
-    if (!this.selectedElection) return;
-
-    this.electionService.vote(this.selectedElection.id, candidate.id).subscribe({
-      next: () => {
-        this.closeModal();
-        this.loadElections();
-      },
-      error: (err) => console.error('Error voting:', err)
-    });
+  // Keep this method for backward compatibility
+  vote(election: Election) {
+    this.viewElection(election);
   }
 
   viewCandidates(election: Election) {
-    // Implémenter la logique pour afficher les candidats
+    this.router.navigate(['election', election.id], { relativeTo: this.route });
   }
 
   viewResults(election: Election) {
-    // Implémenter la logique pour afficher les résultats
-  }
-
-  closeModal() {
-    this.showVoteModal = false;
-    this.selectedElection = null;
+    this.router.navigate(['../election', election.id, 'results'], { relativeTo: this.route });
   }
 }

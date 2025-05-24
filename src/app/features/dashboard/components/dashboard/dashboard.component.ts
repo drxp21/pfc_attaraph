@@ -1,70 +1,114 @@
-import { Component } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { RouterModule } from '@angular/router';
-import { AuthService } from '../../../../core/services/auth.service';
+import { AuthService, User } from '../../../../core/services/auth.service';
+import { Component, OnInit, OnDestroy } from '@angular/core';
+import { Subscription } from 'rxjs';
 
 @Component({
   selector: 'app-dashboard',
   standalone: true,
   imports: [CommonModule, RouterModule],
   template: `
-    <div class="dashboard-layout">
-      <aside class="sidebar">
-        <div class="sidebar-header">
-          <h1>E-<span class="text-accent">Vote</span></h1>
-        </div>
-        
-        <nav class="sidebar-nav">
-          <a routerLink="/dashboard" routerLinkActive="active" [routerLinkActiveOptions]="{exact: true}" class="nav-item">
-            <span class="nav-icon">📊</span>
-            Vue d'ensemble
-          </a>
-          
-          <a routerLink="/dashboard/elections" routerLinkActive="active" class="nav-item">
-            <span class="nav-icon">🗳️</span>
-            Élections en cours
-          </a>
-          
-          <a routerLink="/dashboard/candidature" routerLinkActive="active" class="nav-item">
-            <span class="nav-icon">📝</span>
-            Ma candidature
-          </a>
-          
-          <a routerLink="/dashboard/historique" routerLinkActive="active" class="nav-item">
-            <span class="nav-icon">📅</span>
-            Historique des votes
-          </a>
-        </nav>
-        
-        <div class="sidebar-footer">
-          <button class="btn btn-outline btn-block" (click)="logout()">
-            Se déconnecter
-          </button>
-        </div>
-      </aside>
-      
-      <main class="main-content">
-        <header class="content-header">
-          <div class="user-welcome">
-            <h2>Bienvenue, {{ userName }}</h2>
-            <p>{{ userRole }}</p>
+    <ng-container *ngIf="(authService.currentUser$ | async) as user; else loadingOrError">
+      <!-- Log the user object for debugging -->
+   
+      <div class="dashboard-layout">
+        <aside class="sidebar">
+          <div class="sidebar-header">
+            <h1>E-<span class="text-accent">Vote</span></h1>
           </div>
           
-          <div class="header-actions">
-            <button class="btn-icon" title="Notifications">
-              <span class="icon">🔔</span>
-            </button>
-            <button class="btn-icon" title="Paramètres">
-              <span class="icon">⚙️</span>
+          <nav class="sidebar-nav">
+            <a routerLink="." routerLinkActive="active" [routerLinkActiveOptions]="{exact: true}" class="nav-item">
+              <span class="nav-icon">📊</span>
+              Vue d'ensemble
+            </a>
+            
+            <a *ngIf="user.type_personnel === 'PER' || user.type_personnel === 'PATS' || user.type_personnel === 'ADMIN'" 
+               routerLink="elections" routerLinkActive="active" class="nav-item">
+              <span class="nav-icon">🗳️</span>
+              Élections
+            </a>
+            
+            <a *ngIf="user.type_personnel === 'PER'" routerLink="candidature" routerLinkActive="active" class="nav-item">
+              <span class="nav-icon">📝</span>
+              Ma candidature
+            </a>
+            
+            <a *ngIf="user.type_personnel === 'PER' || user.type_personnel === 'PATS'" 
+               routerLink="historique" routerLinkActive="active" class="nav-item">
+              <span class="nav-icon">📅</span>
+              Historique des votes
+            </a>
+
+            <ng-container *ngIf="user.type_personnel === 'ADMIN'">
+              <hr class="nav-divider">
+              <span class="nav-section-title">Administration</span>
+              <a routerLink="admin/elections" routerLinkActive="active" class="nav-item">
+                <span class="nav-icon">🛠️</span>
+                Gestion Élections
+              </a>
+             <!-- <a routerLink="admin/election-types" routerLinkActive="active" class="nav-item">
+                <span class="nav-icon">🏷️</span>
+                Types d'Élection
+              </a> -->
+              <a routerLink="admin/departements" routerLinkActive="active" class="nav-item">
+                <span class="nav-icon">🏢</span>
+                Départements
+              </a>
+           <!--   <a routerLink="admin/validation" routerLinkActive="active" class="nav-item">
+                <span class="nav-icon">🛡️</span>
+                Validation (Général)
+              </a> -->
+              <a routerLink="admin/candidatures/validation" routerLinkActive="active" class="nav-item">
+                <span class="nav-icon">✅</span>
+                Validation Candidatures
+              </a>
+              <a routerLink="admin/security" routerLinkActive="active" class="nav-item">
+                <span class="nav-icon">🔒</span>
+                Sécurité
+              </a>
+              <a routerLink="admin/stats" routerLinkActive="active" class="nav-item">
+                <span class="nav-icon">📈</span>
+                Statistiques
+              </a>
+            </ng-container>
+          </nav>
+          
+          <div class="sidebar-footer">
+            <button class="btn btn-outline btn-block" (click)="logout()">
+              Se déconnecter
             </button>
           </div>
-        </header>
+        </aside>
         
-        <div class="content-body">
-          <router-outlet></router-outlet>
-        </div>
-      </main>
-    </div>
+        <main class="main-content">
+          <header class="content-header">
+            <div class="user-welcome">
+              <h2>Bienvenue, {{ user.prenom }} {{ user.nom }}</h2>
+              <p>{{ user.type_personnel }}</p>
+            </div>
+            
+            <div class="header-actions">
+              <button class="btn-icon" title="Notifications">
+                <span class="icon">🔔</span>
+              </button>
+              <button class="btn-icon" title="Paramètres">
+                <span class="icon">⚙️</span>
+              </button>
+            </div>
+          </header>
+          
+          <div class="content-body">
+            <router-outlet></router-outlet>
+          </div>
+        </main>
+      </div>
+    </ng-container>
+    <ng-template #loadingOrError>
+      <!-- You can put a loading spinner or an error message here -->
+      <p>Chargement des données utilisateur...</p>
+    </ng-template>
   `,
   styles: [`
     .dashboard-layout {
@@ -203,16 +247,11 @@ import { AuthService } from '../../../../core/services/auth.service';
   `]
 })
 export class DashboardComponent {
-  userName = 'Mansour diouf'; // À remplacer par les données de l'utilisateur
-  userRole = 'Enseignant-Chercheur'; // À remplacer par les données de l'utilisateur
-  
-  constructor(private authService: AuthService) {}
-  
-  async logout() {
-    try {
-      await this.authService.signOut();
-    } catch (error) {
-      console.error('Erreur lors de la déconnexion:', error);
-    }
+  constructor(public authService: AuthService) {}
+
+  logout() {
+    this.authService.logout().subscribe({
+      error: (err) => console.error('Erreur lors de la déconnexion depuis le dashboard:', err)
+    });
   }
 }

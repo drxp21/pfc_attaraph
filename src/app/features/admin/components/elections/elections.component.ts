@@ -1,403 +1,388 @@
-import { Component } from '@angular/core';
-import { CommonModule } from '@angular/common';
-import { FormBuilder, FormGroup, ReactiveFormsModule, Validators } from '@angular/forms';
+import { Component, OnInit, OnDestroy } from '@angular/core';
+import { CommonModule, DatePipe } from '@angular/common';
+import { RouterModule } from '@angular/router'; // Import RouterModule
+import {
+  AbstractControl,
+  FormBuilder,
+  FormGroup,
+  ReactiveFormsModule,
+  ValidationErrors,
+  ValidatorFn,
+  Validators,
+} from '@angular/forms';
+import { Subscription } from 'rxjs';
 
-// Interface pour représenter une élection
-interface Election {
-  id: number;
-  type: string;
-  nom: string;
-  dateDebut: string;
-  dateFin: string;
-  statut: 'active' | 'en attente' | 'terminée';
-  candidats: number;
+import {
+  ElectionService,
+  Election,
+  TypeElection,
+} from '../../../../core/services/election.service';
+import { AuthService, User } from '../../../../core/services/auth.service';
+
+// Validator to ensure a date is not in the past (allows today)
+export function notPastDateValidator(): ValidatorFn {
+  return (control: AbstractControl): ValidationErrors | null => {
+    if (!control.value) {
+      return null; // Don't validate empty values, let 'required' handle it
+    }
+    // For <input type="date">, value is "YYYY-MM-DD".
+    // Append time to ensure it's compared as local start of day.
+    const selectedDate = new Date(control.value + 'T00:00:00');
+    const today = new Date();
+    today.setHours(0, 0, 0, 0); // Compare with start of today
+
+    return selectedDate < today ? { pastDate: true } : null;
+  };
+}
+
+// Validator to ensure dateTwoControlName is after dateOneControlName
+export function dateRangeValidator(dateOneControlName: string, dateTwoControlName: string): ValidatorFn {
+  return (formGroup: AbstractControl): ValidationErrors | null => {
+    const dateOneControl = formGroup.get(dateOneControlName);
+    const dateTwoControl = formGroup.get(dateTwoControlName);
+
+    if (!dateOneControl || !dateTwoControl || !dateOneControl.value || !dateTwoControl.value) {
+      return null; // Don't validate if controls or values are missing
+    }
+
+    const d1 = new Date(dateOneControl.value + 'T00:00:00');
+    const d2 = new Date(dateTwoControl.value + 'T00:00:00');
+
+    if (d2 <= d1) {
+      // Set error on the second date control for specific error message display
+      dateTwoControl.setErrors({ ...dateTwoControl.errors, dateOrder: true });
+      return { [`${dateTwoControlName}Order`]: true }; // Return a unique error key for the group
+    } else {
+      // Clear the specific error if it was previously set
+      const errors = dateTwoControl.errors;
+      if (errors && errors['dateOrder']) {
+        delete errors['dateOrder'];
+        if (Object.keys(errors).length === 0) {
+          dateTwoControl.setErrors(null);
+        } else {
+          dateTwoControl.setErrors(errors);
+        }
+      }
+    }
+    return null;
+  };
 }
 
 @Component({
   selector: 'app-elections',
   standalone: true,
-  imports: [CommonModule, ReactiveFormsModule],
-  template: `
-    <!-- En-tête de la section -->
-    <div class="section-header">
-      <div class="header-content">
-        <h2>Gestion des Élections</h2>
-        <p>Gérez les élections en cours et créez de nouvelles élections</p>
-      </div>
-      <button class="btn btn-primary" (click)="toggleNewElectionForm()">
-        {{ showNewElectionForm ? 'Fermer' : 'Nouvelle Élection' }}
-      </button>
-    </div>
-
-    <!-- Formulaire de création d'élection -->
-    <div class="card" *ngIf="showNewElectionForm">
-      <h3>Configurer une nouvelle élection</h3>
-      <form [formGroup]="electionForm" (ngSubmit)="onSubmit()" class="election-form">
-        <div class="form-group">
-          <label for="type">Type d'élection</label>
-          <select id="type" formControlName="type" class="form-control">
-            <option value="">Sélectionnez un type</option>
-            <option value="chef-dept">Chef de département</option>
-            <option value="directeur-ufr">Directeur/Vice-Directeur d'UFR</option>
-            <option value="vice-recteur">Vice-Recteur</option>
-          </select>
-        </div>
-
-        <div class="form-group">
-          <label for="nom">Nom de l'élection</label>
-          <input type="text" id="nom" formControlName="nom" class="form-control" 
-                 placeholder="Ex: Élection Chef du Département Informatique">
-        </div>
-
-        <div class="form-row">
-          <div class="form-group">
-            <label for="dateDebut">Date de début</label>
-            <input type="date" id="dateDebut" formControlName="dateDebut" class="form-control">
-          </div>
-
-          <div class="form-group">
-            <label for="dateFin">Date de fin</label>
-            <input type="date" id="dateFin" formControlName="dateFin" class="form-control">
-          </div>
-        </div>
-
-        <div class="form-group">
-          <label for="description">Description</label>
-          <textarea id="description" formControlName="description" class="form-control" 
-                    rows="4" placeholder="Décrivez l'objectif et les modalités de cette élection..."></textarea>
-        </div>
-
-        <div class="form-actions">
-          <button type="button" class="btn btn-outline" (click)="resetForm()">Réinitialiser</button>
-          <button type="submit" class="btn btn-primary" [disabled]="!electionForm.valid">
-            Créer l'élection
-          </button>
-        </div>
-      </form>
-    </div>
-
-    <!-- Liste des élections en cours -->
-    <div class="card mt-4">
-      <h3>Élections en cours</h3>
-      <div class="table-responsive">
-        <table class="elections-table">
-          <thead>
-            <tr>
-              <th>Type d'élection</th>
-              <th>Date début</th>
-              <th>Date fin</th>
-              <th>Statut</th>
-              <th>Candidats</th>
-              <th>Actions</th>
-            </tr>
-          </thead>
-          <tbody>
-            <tr *ngFor="let election of elections">
-              <td>{{ election.type }}</td>
-              <td>{{ election.dateDebut | date:'dd/MM/yyyy' }}</td>
-              <td>{{ election.dateFin | date:'dd/MM/yyyy' }}</td>
-              <td>
-                <span class="status-badge" [class]="election.statut">
-                  {{ election.statut }}
-                </span>
-              </td>
-              <td>{{ election.candidats }}</td>
-              <td>
-                <div class="actions">
-                  <button class="btn-icon" title="Modifier">
-                    <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"></path><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"></path></svg>
-                  </button>
-                  <button class="btn-icon" title="Supprimer">
-                    <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"></polyline><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path></svg>
-                  </button>
-                  <button class="btn-icon" title="Voir les détails">
-                    <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"></circle><line x1="21" y1="21" x2="16.65" y2="16.65"></line></svg>
-                  </button>
-                </div>
-              </td>
-            </tr>
-          </tbody>
-        </table>
-      </div>
-    </div>
-
-    <!-- Statistiques des élections -->
-    <div class="stats-grid mt-4">
-      <div class="stat-card">
-        <div class="stat-icon">
-          <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"></path><polyline points="22 4 12 14.01 9 11.01"></polyline></svg>
-        </div>
-        <div class="stat-info">
-          <span class="stat-value">3</span>
-          <span class="stat-label">Élections actives</span>
-        </div>
-      </div>
-
-      <div class="stat-card">
-        <div class="stat-icon">
-          <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"></path><circle cx="9" cy="7" r="4"></circle><path d="M23 21v-2a4 4 0 0 0-3-3.87"></path><path d="M16 3.13a4 4 0 0 1 0 7.75"></path></svg>
-        </div>
-        <div class="stat-info">
-          <span class="stat-value">12</span>
-          <span class="stat-label">Candidats total</span>
-        </div>
-      </div>
-
-      <div class="stat-card">
-        <div class="stat-icon">
-          <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"></polyline></svg>
-        </div>
-        <div class="stat-info">
-          <span class="stat-value">78%</span>
-          <span class="stat-label">Taux participation</span>
-        </div>
-      </div>
-    </div>
-  `,
+  imports: [CommonModule, ReactiveFormsModule, DatePipe, RouterModule],
+  templateUrl: './elections.component.html',
   styles: [`
-    /* Styles de l'en-tête de section */
-    .section-header {
-      display: flex;
-      justify-content: space-between;
-      align-items: center;
-      margin-bottom: 24px;
-    }
-
-    .header-content h2 {
-      margin: 0;
-      color: var(--primary);
-    }
-
-    .header-content p {
-      margin: 4px 0 0;
-      color: var(--gray-500);
-    }
-
-    /* Styles des cartes */
-    .card {
-      background: white;
-      border-radius: var(--border-radius);
-      padding: 24px;
-      box-shadow: var(--shadow-sm);
-    }
-
-    .card h3 {
-      margin: 0 0 24px;
-      color: var(--primary);
-    }
-
-    /* Styles du formulaire */
-    .election-form {
-      display: grid;
-      gap: 20px;
-    }
-
-    .form-row {
-      display: grid;
-      grid-template-columns: 1fr 1fr;
-      gap: 16px;
-    }
-
-    .form-group {
-      display: flex;
-      flex-direction: column;
-      gap: 8px;
-    }
-
-    .form-group label {
-      font-weight: 500;
-      color: var(--primary);
-    }
-
-    .form-control {
-      padding: 10px;
-      border: 1px solid var(--gray-300);
-      border-radius: var(--border-radius);
-      font-size: 1rem;
-      transition: all 0.3s ease;
-    }
-
-    .form-control:focus {
-      outline: none;
-      border-color: var(--secondary);
-      box-shadow: 0 0 0 2px rgba(63, 81, 181, 0.1);
-    }
-
-    .form-actions {
-      display: flex;
-      justify-content: flex-end;
-      gap: 12px;
-      margin-top: 12px;
-    }
-
-    /* Styles de la table */
-    .table-responsive {
-      overflow-x: auto;
-    }
-
-    .elections-table {
-      width: 100%;
-      border-collapse: collapse;
-    }
-
-    .elections-table th,
-    .elections-table td {
-      padding: 12px;
-      text-align: left;
-      border-bottom: 1px solid var(--gray-200);
-    }
-
-    .elections-table th {
-      font-weight: 600;
-      color: var(--primary);
-      background: var(--gray-100);
-    }
-
-    .status-badge {
-      display: inline-block;
-      padding: 4px 8px;
-      border-radius: 12px;
-      font-size: 0.85rem;
-      font-weight: 500;
-    }
-
-    .status-badge.active {
-      background: rgba(76, 175, 80, 0.1);
-      color: #4CAF50;
-    }
-
-    .status-badge.en-attente {
-      background: rgba(255, 193, 7, 0.1);
-      color: #FFC107;
-    }
-
-    .status-badge.terminée {
-      background: rgba(158, 158, 158, 0.1);
-      color: #9E9E9E;
-    }
-
-    .actions {
-      display: flex;
-      gap: 8px;
-    }
-
-    .btn-icon {
-      padding: 6px;
-      border: none;
-      background: none;
-      color: var(--primary);
-      cursor: pointer;
-      border-radius: var(--border-radius);
-      transition: all 0.3s ease;
-    }
-
-    .btn-icon:hover {
-      background: var(--gray-100);
-    }
-
-    /* Styles des statistiques */
-    .stats-grid {
-      display: grid;
-      grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
-      gap: 20px;
-    }
-
-    .stat-card {
-      background: white;
-      border-radius: var(--border-radius);
-      padding: 20px;
-      display: flex;
-      align-items: center;
-      gap: 16px;
-      box-shadow: var(--shadow-sm);
-    }
-
-    .stat-icon {
-      width: 48px;
-      height: 48px;
-      background: var(--gray-100);
-      border-radius: 12px;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      color: var(--primary);
-    }
-
-    .stat-info {
-      display: flex;
-      flex-direction: column;
-    }
-
-    .stat-value {
-      font-size: 1.5rem;
-      font-weight: 600;
-      color: var(--primary);
-    }
-
-    .stat-label {
-      color: var(--gray-500);
-      font-size: 0.9rem;
-    }
-
-    /* Utilitaires */
-    .mt-4 {
-      margin-top: 24px;
-    }
+    /* Add component-specific styles here if needed */
   `]
 })
-export class ElectionsComponent {
+export class ElectionsComponent implements OnInit, OnDestroy {
+  electionTypes: { value: TypeElection; viewValue: string }[] = [
+    { value: 'CHEF_DEPARTEMENT', viewValue: 'Chef de Département' },
+    { value: 'DIRECTEUR_UFR', viewValue: "Directeur d'UFR" },
+    { value: 'VICE_RECTEUR', viewValue: 'Vice-Recteur' },
+  ];
   showNewElectionForm = false;
   electionForm: FormGroup;
+  elections: Election[] = [];
+  isLoading = false;
+  isEditMode = false;
+  currentElectionId: number | null = null;
+  showDeleteConfirmation = false;
+  electionToDelete: Election | null = null;
 
-  // Données de démonstration
-  elections: Election[] = [
-    {
-      id: 1,
-      type: 'Chef de Département Informatique',
-      nom: 'Élection Chef Département Info 2025',
-      dateDebut: '2025-01-15',
-      dateFin: '2025-01-25',
-      statut: 'active',
-      candidats: 3
-    },
-    {
-      id: 2,
-      type: 'Directeur UFR Sciences',
-      nom: 'Élection Directeur UFR Sciences 2025',
-      dateDebut: '2025-02-01',
-      dateFin: '2025-02-15',
-      statut: 'en attente',
-      candidats: 2
-    }
-  ];
+  isAdmin = false;
+  private userSubscription: Subscription | undefined;
 
-  constructor(private fb: FormBuilder) {
+  constructor(
+    private fb: FormBuilder,
+    private electionService: ElectionService,
+    private authService: AuthService
+  ) {
     this.electionForm = this.fb.group({
-      type: ['', Validators.required],
-      nom: ['', Validators.required],
-      dateDebut: ['', Validators.required],
-      dateFin: ['', Validators.required],
-      description: ['', Validators.required]
+      titre: ['', Validators.required],
+      description: ['', Validators.required],
+      type_election: ['', Validators.required],
+      departement_id: [null], // Optional, no validator for now
+      date_debut_candidature: ['', [Validators.required, notPastDateValidator()]],
+      date_fin_candidature: ['', Validators.required],
+      date_debut_vote: ['', Validators.required],
+      date_fin_vote: ['', Validators.required],
+    }, {
+      validators: [
+        dateRangeValidator('date_debut_candidature', 'date_fin_candidature'),
+        dateRangeValidator('date_fin_candidature', 'date_debut_vote'),
+        dateRangeValidator('date_debut_vote', 'date_fin_vote') // Assuming fin_vote should be after debut_vote
+      ]
     });
   }
 
-  toggleNewElectionForm() {
+  ngOnInit(): void {
+    this.userSubscription = this.authService.currentUser$.subscribe((user: User | null) => {
+      console.log('ElectionsComponent - User from AuthService:', user);
+      this.isAdmin = user?.type_personnel === 'ADMIN';
+      console.log('ElectionsComponent - isAdmin:', this.isAdmin);
+    });
+    this.loadElections();
+  }
+
+  ngOnDestroy(): void {
+    if (this.userSubscription) {
+      this.userSubscription.unsubscribe();
+    }
+  }
+
+  loadElections(): void {
+    this.isLoading = true;
+    this.electionService.getElections().subscribe({
+      next: (data) => {
+        this.elections = data;
+        this.isLoading = false;
+      },
+      error: (err) => {
+        console.error('Erreur lors du chargement des élections:', err);
+        this.isLoading = false;
+        // TODO: Afficher un message d'erreur à l'utilisateur
+      },
+    });
+  }
+
+  toggleNewElectionForm(): void {
     this.showNewElectionForm = !this.showNewElectionForm;
     if (!this.showNewElectionForm) {
       this.resetForm();
     }
   }
 
-  resetForm() {
-    this.electionForm.reset();
+  resetForm(): void {
+    this.electionForm.reset({
+      titre: '',
+      description: '',
+      type_election: '',
+      departement_id: null,
+      date_debut_candidature: '',
+      date_fin_candidature: '',
+      date_debut_vote: '',
+      date_fin_vote: '',
+      // Set other defaults if needed, e.g., departement_id: null if it's not automatically null
+    });
+    this.isEditMode = false;
+    this.currentElectionId = null;
   }
 
-  onSubmit() {
-    if (this.electionForm.valid) {
-      console.log('Nouvelle élection:', this.electionForm.value);
-      // Logique pour sauvegarder l'élection
-      this.resetForm();
+  cancelEdit(): void {
+    if (this.isEditMode) {
+      this.isEditMode = false;
+      this.currentElectionId = null;
       this.showNewElectionForm = false;
+    } else {
+      this.resetForm();
     }
+  }
+
+  editElection(election: Election): void {
+    if (!this.isAdmin) return;
+
+    this.isEditMode = true;
+    this.currentElectionId = election.id;
+    this.showNewElectionForm = false; // Hide the new election form if it's open
+
+    // Format dates for the form (YYYY-MM-DD format for input[type=date])
+    const formatDate = (dateStr: string) => {
+      if (!dateStr) return '';
+      const date = new Date(dateStr);
+      return date.toISOString().split('T')[0];
+    };
+
+    this.electionForm.patchValue({
+      titre: election.titre,
+      description: election.description,
+      type_election: election.type_election,
+      departement_id: election.departement_id || null,
+      date_debut_candidature: formatDate(election.date_debut_candidature),
+      date_fin_candidature: formatDate(election.date_fin_candidature),
+      date_debut_vote: formatDate(election.date_debut_vote),
+      date_fin_vote: formatDate(election.date_fin_vote),
+    });
+  }
+
+  confirmDeleteElection(election: Election): void {
+    if (!this.isAdmin) return;
+
+    this.electionToDelete = election;
+    this.showDeleteConfirmation = true;
+  }
+
+  cancelDelete(): void {
+    this.showDeleteConfirmation = false;
+    this.electionToDelete = null;
+  }
+
+  deleteElection(): void {
+    if (!this.isAdmin || !this.electionToDelete) return;
+
+    this.electionService.deleteElection(this.electionToDelete.id).subscribe({
+      next: () => {
+        console.log(
+          `Élection ${this.electionToDelete?.id} supprimée avec succès.`
+        );
+        this.loadElections(); // Refresh list
+        this.cancelDelete(); // Close the confirmation dialog
+        // TODO: Afficher un message de succès
+      },
+      error: (err) => {
+        console.error(
+          `Erreur lors de la suppression de l'élection ${this.electionToDelete?.id}:`,
+          err
+        );
+        // TODO: Afficher un message d'erreur
+      },
+    });
+  }
+
+  onSubmit(): void {
+    if (this.electionForm.valid) {
+      // Ensure all fields expected by the backend are present, even if optional and empty
+      const formValue = this.electionForm.value;
+      const electionData: Partial<Election> = {
+        titre: formValue.titre,
+        description: formValue.description,
+        type_election: formValue.type_election,
+        date_debut_candidature: formValue.date_debut_candidature,
+        date_fin_candidature: formValue.date_fin_candidature,
+        date_debut_vote: formValue.date_debut_vote,
+        date_fin_vote: formValue.date_fin_vote,
+        // statut will be set below
+      };
+
+      // Only set statut for new elections, not when editing
+      if (!this.isEditMode) {
+        electionData.statut = 'BROUILLON'; // Backend expects this for new/draft elections
+      }
+
+      // Handle optional departement_id: if it's null or not a valid number from the form,
+      // make it undefined or omit it. Since it's type number, empty input becomes null.
+      if (
+        formValue.departement_id !== null &&
+        !isNaN(Number(formValue.departement_id))
+      ) {
+        electionData.departement_id = Number(formValue.departement_id);
+      } else {
+        // If null, or NaN (e.g. if input was text), treat as not provided.
+        // It will be undefined by not being set on electionData if it's not added above.
+        // Or explicitly: electionData.departement_id = undefined;
+      }
+
+      if (this.isEditMode && this.currentElectionId) {
+        // Update existing election
+        console.log(
+          `Mise à jour de l'élection ${this.currentElectionId} (payload):`,
+          electionData
+        );
+        this.electionService
+          .updateElection(this.currentElectionId, electionData)
+          .subscribe({
+            next: (updatedElection) => {
+              console.log(
+                `Élection ${this.currentElectionId} mise à jour avec succès:`,
+                updatedElection
+              );
+              this.loadElections(); // Refresh list
+              this.resetForm();
+              this.isEditMode = false;
+              this.currentElectionId = null;
+              // TODO: Afficher un message de succès
+            },
+            error: (err) => {
+              console.error(
+                `Erreur lors de la mise à jour de l'élection ${this.currentElectionId}:`,
+                err
+              );
+              // TODO: Afficher un message d'erreur détaillé
+            },
+          });
+      } else {
+        // Create new election
+        console.log('Nouvelle élection (payload):', electionData);
+        this.electionService.createElection(electionData).subscribe({
+          next: (newElection) => {
+            console.log('Élection créée avec succès:', newElection);
+            this.loadElections(); // Refresh list
+            this.resetForm();
+            this.showNewElectionForm = false;
+            // TODO: Afficher un message de succès
+          },
+          error: (err) => {
+            console.error("Erreur lors de la création de l'élection:", err);
+            // TODO: Afficher un message d'erreur détaillé
+          },
+        });
+      }
+    }
+  }
+
+  openElection(electionId: number): void {
+    if (!this.isAdmin) return;
+    this.electionService.openElection(electionId).subscribe({
+      next: () => {
+        console.log(`Élection ${electionId} ouverte avec succès.`);
+        this.loadElections(); // Refresh list
+        // TODO: Afficher un message de succès
+      },
+      error: (err) => {
+        console.error(
+          `Erreur lors de l'ouverture de l'élection ${electionId}:`,
+          err
+        );
+        // TODO: Afficher un message d'erreur
+      },
+    });
+  }
+
+  closeElection(electionId: number): void {
+    if (!this.isAdmin) return;
+    this.electionService.closeElection(electionId).subscribe({
+      next: () => {
+        console.log(`Élection ${electionId} fermée avec succès.`);
+        this.loadElections(); // Refresh list
+        // TODO: Afficher un message de succès
+      },
+      error: (err) => {
+        console.error(
+          `Erreur lors de la fermeture de l'élection ${electionId}:`,
+          err
+        );
+        // TODO: Afficher un message d'erreur
+      },
+    });
+  }
+
+  // Helper for template to map status to CSS class
+  getStatutClass(statut: string | undefined): string {
+    if (!statut) return '';
+    switch (statut) {
+      case 'OUVERTE':
+        return 'active'; // Or a new class like 'ouverte'
+      case 'EN_COURS':
+        return 'active'; // Or a new class like 'en-cours'
+      case 'BROUILLON':
+        return 'draft';
+      case 'FERMEE':
+        return 'closed'; // Or a new class like 'fermee'
+      default:
+        return ''; // Should not happen if statut is one of the defined types
+    }
+  }
+
+  mapStatutForDisplay(statut: string | undefined): string {
+    if (!statut) return 'N/A';
+    const mapping: { [key: string]: string } = {
+      'BROUILLON': 'Brouillon',
+      'OUVERTE': 'Ouverte',
+      'EN_COURS': 'En Cours',
+      'FERMEE': 'Fermée',
+    };
+    return mapping[statut] || statut; // Fallback to raw statut if not in map
   }
 }

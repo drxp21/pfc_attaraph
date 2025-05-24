@@ -1,0 +1,72 @@
+/* src/app/features/admin/components/departements/departements.component.scss */
+.departements-container {
+    padding: 20px;
+    max-width: 1000px;
+    margin: auto;
+}
+
+.page-header {
+    margin-bottom: 2rem;
+
+    h2 {
+        margin-bottom: 0.5rem;
+    }
+}
+
+.form-card {
+    background-color: #f8f9fa;
+    /* Light grey background for the form card */
+    border: 1px solid #dee2e6;
+    /* Standard border */
+}
+
+.list-card {
+    margin-top: 2rem;
+}
+
+.form-actions {
+    display: flex;
+    justify-content: flex-start;
+    gap: 10px;
+}
+
+.table {
+    th {
+        white-space: nowrap;
+    }
+
+    td {
+        vertical-align: middle;
+    }
+
+    .btn i {
+        margin-right: 0.3rem;
+    }
+}
+
+/* Add Bootstrap Icons if not already globally available */
+/* @import "~bootstrap-icons/font/bootstrap-icons.css"; */
+/* Ensure you have bootstrap-icons installed or use SVGs/other icon fonts */
+
+.alert {
+    margin-top: 1rem;
+    margin-bottom: 1rem;
+}
+
+/* Styling for invalid form fields from Bootstrap */
+.form-control.is-invalid {
+    border-color: #dc3545;
+}
+
+.invalid-feedback {
+    display: block;
+    /* Ensure feedback is shown */
+    width: 100%;
+    margin-top: .25rem;
+    font-size: .875em;
+    color: #dc3545;
+}
+
+.spinner-border-sm {
+    margin-right: 0.5rem;
+}

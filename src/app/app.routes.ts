@@ -1,5 +1,5 @@
 import { Routes } from '@angular/router';
-import { AuthGuard } from './core/guards/auth.guard';
+import { authGuard } from './core/guards/auth.guard';
 
 export const routes: Routes = [
   {
@@ -11,27 +11,9 @@ export const routes: Routes = [
     loadChildren: () => import('./features/auth/auth.routes').then(r => r.AUTH_ROUTES)
   },
   {
-    path: 'admin',
-    loadChildren: () => import('./features/admin/admin.routes').then(r => r.ADMIN_ROUTES),
-   
-  },
-  {
     path: 'dashboard',
     loadChildren: () => import('./features/dashboard/dashboard.routes').then(r => r.DASHBOARD_ROUTES),
-   
-  },
-  {
-    path: 'elections',
-    loadComponent: () => import('./features/elections/elections-list/elections-list.component').then(c => c.ElectionsListComponent)
-  },
-  {
-    path: 'elections/:id/vote',
-    loadComponent: () => import('./features/elections/vote/vote.component').then(c => c.VoteComponent),
-   
-  },
-  {
-    path: 'resultats/:id',
-    loadComponent: () => import('./features/results/results.component').then(c => c.ResultsComponent)
+    canActivate: [authGuard]
   },
   {
     path: 'procedure',
