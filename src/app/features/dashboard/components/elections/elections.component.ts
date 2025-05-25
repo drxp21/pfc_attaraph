@@ -57,6 +57,14 @@ import { VoteService } from '../../../../core/services/vote.service';
                     (click)="viewResults(election); $event.stopPropagation()">
               Voir les résultats
             </button>
+            <a
+                *ngIf="election.statut === 'FERMEE'"
+                [routerLink]="['/election', election.id, 'results']"
+                class="btn btn-sm btn-info"
+                title="Voir les résultats"
+              >
+                Voir Résultats
+              </a>
           </div>
         </div>
       </div>

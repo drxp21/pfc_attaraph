@@ -1,12 +1,32 @@
-import { Component } from '@angular/core';
+import { Component, OnInit } from '@angular/core';
 import { CommonModule } from '@angular/common';
-import { RouterModule } from '@angular/router';
-import { FormBuilder, FormGroup, ReactiveFormsModule, Validators } from '@angular/forms';
+import { RouterModule, Router } from '@angular/router';
+import { FormBuilder, FormGroup, ReactiveFormsModule, Validators, AbstractControl, ValidationErrors, ValidatorFn } from '@angular/forms';
+import { HttpClient } from '@angular/common/http';
+import { environment } from '../../../../../environments/environment'; // Adjusted path
+import { AuthService, LoginResponse, User } from '../../../../core/services/auth.service';
+
+// Custom validator for password confirmation
+export const passwordMatchValidator: ValidatorFn = (control: AbstractControl): ValidationErrors | null => {
+  const password = control.get('password');
+  const confirmPassword = control.get('password_confirmation');
+
+  if (password && confirmPassword && password.value !== confirmPassword.value) {
+    return { passwordMismatch: true };
+  }
+  return null;
+};
+
+interface Departement {
+  id: number;
+  nom: string; // Assuming your department object has at least id and nom
+  // Add other properties if needed
+}
 
 @Component({
   selector: 'app-register',
   standalone: true,
-  imports: [CommonModule, RouterModule, ReactiveFormsModule],
+  imports: [CommonModule, RouterModule, ReactiveFormsModule], // HttpClientModule is not needed here for standalone with provideHttpClient
   template: `
     <div class="auth-wrapper">
       <div class="auth-container">
@@ -18,70 +38,34 @@ import { FormBuilder, FormGroup, ReactiveFormsModule, Validators } from '@angula
           </div>
           
           <form [formGroup]="registerForm" (ngSubmit)="onSubmit()" class="auth-form">
-            <div class="user-type-selector">
-              <div class="user-type-option">
-                <input 
-                  type="radio" 
-                  id="user-per" 
-                  formControlName="userType" 
-                  value="per"
-                  (change)="onUserTypeChange('per')">
-                <label for="user-per">
-                  <div class="option-icon">
-                    <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 19.5v-15A2.5 2.5 0 0 1 6.5 2H20v20H6.5a2.5 2.5 0 0 1 0-5H20"></path></svg>
-                  </div>
-                  <div class="option-info">
-                    <span class="option-title">Personnel Enseignant</span>
-                    <span class="option-desc">PER - Personnel Enseignant et de Recherche</span>
-                  </div>
-                </label>
-              </div>
-              
-              <div class="user-type-option">
-                <input 
-                  type="radio" 
-                  id="user-pats" 
-                  formControlName="userType" 
-                  value="pats"
-                  (change)="onUserTypeChange('pats')">
-                <label for="user-pats">
-                  <div class="option-icon">
-                    <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 10c0 6-8 12-8 12s-8-6-8-12a8 8 0 0 1 16 0Z"></path><circle cx="12" cy="10" r="3"></circle></svg>
-                  </div>
-                  <div class="option-info">
-                    <span class="option-title">Personnel Administratif</span>
-                    <span class="option-desc">PATS - Personnel Administratif, Technique et de Service</span>
-                  </div>
-                </label>
-              </div>
-            </div>
-            
             <div class="form-row">
               <div class="form-group">
-                <label for="firstName">Prénom</label>
+                <label for="nom">Nom</label>
                 <input 
                   type="text" 
-                  id="firstName" 
-                  formControlName="firstName" 
+                  id="nom" 
+                  formControlName="nom" 
                   class="form-control" 
-                  [class.is-invalid]="firstName?.invalid && (firstName?.dirty || firstName?.touched)"
-                  placeholder="Votre prénom">
-                <div *ngIf="firstName?.invalid && (firstName?.dirty || firstName?.touched)" class="error-message">
-                  <span *ngIf="firstName?.errors?.['required']">Le prénom est requis</span>
+                  [class.is-invalid]="nom?.invalid && (nom?.dirty || nom?.touched)"
+                  placeholder="Votre nom">
+                <div *ngIf="nom?.invalid && (nom?.dirty || nom?.touched)" class="error-message">
+                  <span *ngIf="nom?.errors?.['required']">Le nom est requis.</span>
+                  <span *ngIf="nom?.errors?.['maxlength']">Le nom ne doit pas dépasser 255 caractères.</span>
                 </div>
               </div>
               
               <div class="form-group">
-                <label for="lastName">Nom</label>
+                <label for="prenom">Prénom</label>
                 <input 
                   type="text" 
-                  id="lastName" 
-                  formControlName="lastName" 
+                  id="prenom" 
+                  formControlName="prenom" 
                   class="form-control" 
-                  [class.is-invalid]="lastName?.invalid && (lastName?.dirty || lastName?.touched)"
-                  placeholder="Votre nom">
-                <div *ngIf="lastName?.invalid && (lastName?.dirty || lastName?.touched)" class="error-message">
-                  <span *ngIf="lastName?.errors?.['required']">Le nom est requis</span>
+                  [class.is-invalid]="prenom?.invalid && (prenom?.dirty || prenom?.touched)"
+                  placeholder="Votre prénom">
+                <div *ngIf="prenom?.invalid && (prenom?.dirty || prenom?.touched)" class="error-message">
+                  <span *ngIf="prenom?.errors?.['required']">Le prénom est requis.</span>
+                  <span *ngIf="prenom?.errors?.['maxlength']">Le prénom ne doit pas dépasser 255 caractères.</span>
                 </div>
               </div>
             </div>
@@ -96,70 +80,126 @@ import { FormBuilder, FormGroup, ReactiveFormsModule, Validators } from '@angula
                 [class.is-invalid]="email?.invalid && (email?.dirty || email?.touched)"
                 placeholder="votre-email@universite.edu">
               <div *ngIf="email?.invalid && (email?.dirty || email?.touched)" class="error-message">
-                <span *ngIf="email?.errors?.['required']">L'email est requis</span>
-                <span *ngIf="email?.errors?.['email']">Veuillez saisir un email valide</span>
+                <span *ngIf="email?.errors?.['required']">L'email est requis.</span>
+                <span *ngIf="email?.errors?.['email']">Veuillez saisir un email valide.</span>
+                <span *ngIf="email?.errors?.['maxlength']">L'email ne doit pas dépasser 255 caractères.</span>
               </div>
             </div>
+
+            <div class="form-group">
+              <label for="telephone">Téléphone (Optionnel)</label>
+              <input 
+                type="tel" 
+                id="telephone" 
+                formControlName="telephone" 
+                class="form-control"
+                [class.is-invalid]="telephone?.invalid && (telephone?.dirty || telephone?.touched)"
+                placeholder="Votre numéro de téléphone">
+              <div *ngIf="telephone?.invalid && (telephone?.dirty || telephone?.touched)" class="error-message">
+                  <span *ngIf="telephone?.errors?.['maxlength']">Le téléphone ne doit pas dépasser 20 caractères.</span>
+              </div>
+            </div>
+
+            <div class="form-group">
+                <label>Type de personnel</label>
+                <div class="user-type-selector">
+                    <div class="user-type-option">
+                        <input 
+                            type="radio" 
+                            id="type-per" 
+                            formControlName="type_personnel" 
+                            value="PER"
+                            (change)="onUserTypeChange()">
+                        <label for="type-per">
+                            <div class="option-icon">
+                                <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 19.5v-15A2.5 2.5 0 0 1 6.5 2H20v20H6.5a2.5 2.5 0 0 1 0-5H20"></path></svg>
+                            </div>
+                            <div class="option-info">
+                                <span class="option-title">Personnel Enseignant (PER)</span>
+                                <span class="option-desc">Personnel Enseignant et de Recherche</span>
+                            </div>
+                        </label>
+                    </div>
+                    <div class="user-type-option">
+                        <input 
+                            type="radio" 
+                            id="type-pats" 
+                            formControlName="type_personnel" 
+                            value="PATS"
+                            (change)="onUserTypeChange()">
+                        <label for="type-pats">
+                            <div class="option-icon">
+                                <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 10c0 6-8 12-8 12s-8-6-8-12a8 8 0 0 1 16 0Z"></path><circle cx="12" cy="10" r="3"></circle></svg>
+                            </div>
+                            <div class="option-info">
+                                <span class="option-title">Personnel Administratif (PATS)</span>
+                                <span class="option-desc">Administratif, Technique et de Service</span>
+                            </div>
+                        </label>
+                    </div>
+                </div>
+                 <div *ngIf="type_personnel?.invalid && (type_personnel?.dirty || type_personnel?.touched)" class="error-message">
+                    <span *ngIf="type_personnel?.errors?.['required']">Le type de personnel est requis.</span>
+                </div>
+            </div>
             
-            <div *ngIf="userTypeValue === 'per'" class="form-group">
-              <label for="department">Département</label>
+            <div class="form-group">
+              <label for="departement_id">Département</label>
+              <div *ngIf="isLoadingDepartements" class="loading-message">Chargement des départements...</div>
               <select 
-                id="department" 
-                formControlName="department" 
-                class="form-control" 
-                [class.is-invalid]="department?.invalid && (department?.dirty || department?.touched)">
-                <option value="" disabled>Sélectionnez votre département</option>
-                <option value="math">Mathématiques</option>
-                <option value="physics">Physique</option>
-                <option value="cs">Informatique</option>
-                <option value="literature">Lettres et Langues</option>
-                <option value="history">Histoire et Géographie</option>
-                <option value="biology">Biologie</option>
-                <option value="chemistry">Chimie</option>
+                *ngIf="!isLoadingDepartements"
+                id="departement_id" 
+                formControlName="departement_id" 
+                class="form-control"
+                [class.is-invalid]="departement_id?.invalid && (departement_id?.dirty || departement_id?.touched)">
+                <option [ngValue]="null" disabled>Sélectionnez votre département</option>
+                <option *ngFor="let dept of departements" [value]="dept.id">{{ dept.nom }}</option>
               </select>
-              <div *ngIf="department?.invalid && (department?.dirty || department?.touched)" class="error-message">
-                <span *ngIf="department?.errors?.['required']">Le département est requis</span>
+               <div *ngIf="departement_id?.invalid && (departement_id?.dirty || departement_id?.touched) && departement_id?.errors?.['required']" class="error-message">
+                  Le département est requis pour le personnel enseignant.
               </div>
             </div>
             
-            <div class="form-group">
-              <label for="password">Mot de passe</label>
-              <div class="password-input-wrapper">
-                <input 
-                  [type]="showPassword ? 'text' : 'password'" 
-                  id="password" 
-                  formControlName="password" 
-                  class="form-control" 
-                  [class.is-invalid]="password?.invalid && (password?.dirty || password?.touched)"
-                  placeholder="Choisissez un mot de passe">
-                <button 
-                  type="button" 
-                  class="password-toggle" 
-                  (click)="togglePasswordVisibility()">
-                  <svg *ngIf="!showPassword" xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"></path><circle cx="12" cy="12" r="3"></circle></svg>
-                  <svg *ngIf="showPassword" xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"></path><circle cx="12" cy="12" r="3"></circle><line x1="1" y1="1" x2="23" y2="23"></line></svg>
-                </button>
+            <div class="form-row">
+              <div class="form-group">
+                <label for="password">Mot de passe</label>
+                <div class="password-input-wrapper">
+                  <input 
+                    [type]="showPassword ? 'text' : 'password'" 
+                    id="password" 
+                    formControlName="password" 
+                    class="form-control" 
+                    [class.is-invalid]="password?.invalid && (password?.dirty || password?.touched)"
+                    placeholder="Choisissez un mot de passe">
+                  <button 
+                    type="button" 
+                    class="password-toggle" 
+                    (click)="togglePasswordVisibility()">
+                    <svg *ngIf="!showPassword" xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"></path><circle cx="12" cy="12" r="3"></circle></svg>
+                    <svg *ngIf="showPassword" xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"></path><circle cx="12" cy="12" r="3"></circle><line x1="1" y1="1" x2="23" y2="23"></line></svg>
+                  </button>
+                </div>
+                <div *ngIf="password?.invalid && (password?.dirty || password?.touched)" class="error-message">
+                  <span *ngIf="password?.errors?.['required']">Le mot de passe est requis.</span>
+                  <span *ngIf="password?.errors?.['minlength']">Le mot de passe doit contenir au moins 8 caractères.</span>
+                </div>
               </div>
-              <div *ngIf="password?.invalid && (password?.dirty || password?.touched)" class="error-message">
-                <span *ngIf="password?.errors?.['required']">Le mot de passe est requis</span>
-                <span *ngIf="password?.errors?.['minlength']">Le mot de passe doit contenir au moins 6 caractères</span>
-              </div>
-            </div>
-            
-            <div class="form-group">
-              <label for="confirmPassword">Confirmer le mot de passe</label>
-              <div class="password-input-wrapper">
-                <input 
-                  [type]="showPassword ? 'text' : 'password'" 
-                  id="confirmPassword" 
-                  formControlName="confirmPassword" 
-                  class="form-control" 
-                  [class.is-invalid]="confirmPassword?.invalid && (confirmPassword?.dirty || confirmPassword?.touched) || passwordMismatch"
-                  placeholder="Confirmez votre mot de passe">
-              </div>
-              <div *ngIf="(confirmPassword?.invalid && (confirmPassword?.dirty || confirmPassword?.touched)) || passwordMismatch" class="error-message">
-                <span *ngIf="confirmPassword?.errors?.['required']">La confirmation du mot de passe est requise</span>
-                <span *ngIf="passwordMismatch && !confirmPassword?.errors?.['required']">Les mots de passe ne correspondent pas</span>
+              
+              <div class="form-group">
+                <label for="password_confirmation">Confirmer le mot de passe</label>
+                <div class="password-input-wrapper">
+                  <input 
+                    [type]="showPassword ? 'text' : 'password'" 
+                    id="password_confirmation" 
+                    formControlName="password_confirmation" 
+                    class="form-control" 
+                    [class.is-invalid]="(password_confirmation?.invalid && (password_confirmation?.dirty || password_confirmation?.touched)) || registerForm.errors?.['passwordMismatch'] && (password?.touched && password_confirmation?.touched)"
+                    placeholder="Confirmez votre mot de passe">
+                </div>
+                <div *ngIf="(password_confirmation?.invalid && (password_confirmation?.dirty || password_confirmation?.touched)) || registerForm.errors?.['passwordMismatch'] && (password?.touched && password_confirmation?.touched)" class="error-message">
+                  <span *ngIf="password_confirmation?.errors?.['required']">La confirmation du mot de passe est requise.</span>
+                  <span *ngIf="registerForm.errors?.['passwordMismatch'] && !password_confirmation?.errors?.['required']">Les mots de passe ne correspondent pas.</span>
+                </div>
               </div>
             </div>
             
@@ -170,11 +210,11 @@ import { FormBuilder, FormGroup, ReactiveFormsModule, Validators } from '@angula
                 J'accepte les <a href="#">termes et conditions</a> ainsi que la <a href="#">politique de confidentialité</a>
               </label>
               <div *ngIf="termsAccepted?.invalid && (termsAccepted?.dirty || termsAccepted?.touched)" class="error-message">
-                <span *ngIf="termsAccepted?.errors?.['required']">Vous devez accepter les termes et conditions</span>
+                <span *ngIf="termsAccepted?.errors?.['requiredTrue']">Vous devez accepter les termes et conditions.</span>
               </div>
             </div>
             
-            <button type="submit" class="btn btn-primary btn-block" [disabled]="registerForm.invalid || isSubmitting || passwordMismatch">
+            <button type="submit" class="btn btn-primary btn-block" [disabled]="registerForm.invalid || isSubmitting">
               <span *ngIf="isSubmitting" class="spinner"></span>
               <span *ngIf="!isSubmitting">Créer mon compte</span>
             </button>
@@ -197,7 +237,7 @@ import { FormBuilder, FormGroup, ReactiveFormsModule, Validators } from '@angula
     
     .auth-container {
       width: 100%;
-      max-width: 580px;
+      max-width: 580px; /* Increased max-width for more fields */
       margin: auto;
     }
     
@@ -239,7 +279,7 @@ import { FormBuilder, FormGroup, ReactiveFormsModule, Validators } from '@angula
     }
     
     .form-group {
-      margin-bottom: 24px;
+      margin-bottom: 20px; /* Adjusted margin */
     }
     
     .form-row {
@@ -262,6 +302,7 @@ import { FormBuilder, FormGroup, ReactiveFormsModule, Validators } from '@angula
       border-radius: var(--border-radius);
       font-size: 1rem;
       transition: var(--transition);
+      background-color: white; /* Ensure select background is white */
     }
     
     .form-control:focus {
@@ -273,10 +314,21 @@ import { FormBuilder, FormGroup, ReactiveFormsModule, Validators } from '@angula
     .form-control.is-invalid {
       border-color: var(--error);
     }
+
+    .form-control:disabled {
+      background-color: var(--gray-100);
+      cursor: not-allowed;
+    }
     
     .error-message {
       color: var(--error);
-      font-size: 0.9rem;
+      font-size: 0.85rem; /* Slightly smaller error messages */
+      margin-top: 6px;
+    }
+
+    .loading-message {
+      color: var(--gray-500);
+      font-style: italic;
       margin-top: 8px;
     }
     
@@ -295,81 +347,19 @@ import { FormBuilder, FormGroup, ReactiveFormsModule, Validators } from '@angula
       cursor: pointer;
     }
     
-    .user-type-selector {
-      display: grid;
-      grid-template-columns: 1fr 1fr;
-      gap: 16px;
-      margin-bottom: 24px;
-    }
-    
-    .user-type-option input[type="radio"] {
-      position: absolute;
-      opacity: 0;
-      width: 0;
-      height: 0;
-    }
-    
-    .user-type-option label {
-      display: flex;
-      align-items: center;
-      padding: 16px;
-      border: 2px solid var(--gray-300);
-      border-radius: var(--border-radius);
-      cursor: pointer;
-      transition: var(--transition);
-    }
-    
-    .user-type-option input[type="radio"]:checked + label {
-      border-color: var(--secondary);
-      background-color: rgba(63, 81, 181, 0.05);
-    }
-    
-    .option-icon {
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      width: 48px;
-      height: 48px;
-      background-color: var(--gray-200);
-      border-radius: 50%;
-      margin-right: 16px;
-      color: var(--primary);
-      transition: var(--transition);
-    }
-    
-    .user-type-option input[type="radio"]:checked + label .option-icon {
-      background-color: var(--secondary);
-      color: white;
-    }
-    
-    .option-info {
-      display: flex;
-      flex-direction: column;
-    }
-    
-    .option-title {
-      font-weight: 600;
-      color: var(--primary);
-      margin-bottom: 4px;
-    }
-    
-    .option-desc {
-      font-size: 0.85rem;
-      color: var(--gray-500);
-    }
-    
     .terms-checkbox {
-      margin-top: 32px;
+      margin-top: 24px; /* Adjusted margin */
     }
     
     .checkbox-container {
       display: flex;
-      align-items: flex-start;
+      align-items: flex-start; /* Align checkbox with text start */
       position: relative;
-      padding-left: 32px;
+      padding-left: 30px; /* Adjusted padding */
       cursor: pointer;
       user-select: none;
-      line-height: 1.5;
+      line-height: 1.4; /* Adjusted line height */
+      font-size: 0.9rem; /* Smaller terms text */
     }
     
     .checkbox-container input {
@@ -382,9 +372,9 @@ import { FormBuilder, FormGroup, ReactiveFormsModule, Validators } from '@angula
     .checkmark {
       position: absolute;
       left: 0;
-      top: 2px;
-      height: 20px;
-      width: 20px;
+      top: 2px; /* Align with text */
+      height: 18px; /* Smaller checkmark */
+      width: 18px;
       background-color: var(--gray-200);
       border-radius: 4px;
       transition: var(--transition);
@@ -409,10 +399,10 @@ import { FormBuilder, FormGroup, ReactiveFormsModule, Validators } from '@angula
     }
     
     .checkbox-container .checkmark:after {
-      left: 7px;
-      top: 3px;
-      width: 6px;
-      height: 12px;
+      left: 6px; /* Adjusted for smaller checkmark */
+      top: 2px;  /* Adjusted for smaller checkmark */
+      width: 5px;  /* Adjusted for smaller checkmark */
+      height: 10px; /* Adjusted for smaller checkmark */
       border: solid white;
       border-width: 0 2px 2px 0;
       transform: rotate(45deg);
@@ -428,10 +418,12 @@ import { FormBuilder, FormGroup, ReactiveFormsModule, Validators } from '@angula
     .auth-footer {
       text-align: center;
       color: var(--gray-500);
+      margin-top: 32px; /* Added margin */
     }
     
     .auth-footer a {
       font-weight: 500;
+      color: var(--secondary); /* Consistent link color */
     }
     
     .spinner {
@@ -452,85 +444,222 @@ import { FormBuilder, FormGroup, ReactiveFormsModule, Validators } from '@angula
       .auth-card {
         padding: 24px;
       }
-      
-      .user-type-selector {
-        grid-template-columns: 1fr;
-      }
-      
       .form-row {
         grid-template-columns: 1fr;
-        gap: 0;
+        gap: 0; /* Remove gap for single column items */
       }
+      .form-row .form-group { /* Ensure full width for items in form-row on mobile */
+         margin-bottom: 20px;
+      }
+      .form-row .form-group:last-child {
+         margin-bottom: 0; /* No bottom margin for the last item in a row on mobile */
+      }
+       .password-input-wrapper { /* Ensure password fields take full width in form-row on mobile */
+        margin-bottom: 20px;
+      }
+       .password-input-wrapper:last-child {
+        margin-bottom: 0;
+      }
+    }
+
+    /* Styles for user type radio buttons */
+    .user-type-selector {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 16px;
+      margin-bottom: 16px;
+    }
+    
+    .user-type-option input[type="radio"] {
+      position: absolute;
+      opacity: 0;
+      width: 0;
+      height: 0;
+    }
+    
+    .user-type-option label {
+      display: flex;
+      align-items: center;
+      padding: 16px;
+      border: 2px solid var(--gray-300);
+      border-radius: var(--border-radius);
+      cursor: pointer;
+      transition: var(--transition);
+      margin-bottom: 0;
+    }
+    
+    .user-type-option input[type="radio"]:checked + label {
+      border-color: var(--secondary);
+      background-color: rgba(63, 81, 181, 0.05);
+    }
+    
+    .option-icon {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      width: 40px;
+      height: 40px;
+      background-color: var(--gray-200);
+      border-radius: 50%;
+      margin-right: 12px;
+      color: var(--primary);
+      transition: var(--transition);
+      flex-shrink: 0;
+    }
+    
+    .user-type-option input[type="radio"]:checked + label .option-icon {
+      background-color: var(--secondary);
+      color: white;
+    }
+    
+    .option-info {
+      display: flex;
+      flex-direction: column;
+    }
+    
+    .option-title {
+      font-weight: 600;
+      color: var(--primary);
+      margin-bottom: 2px;
+      font-size: 0.95rem;
+    }
+    
+    .option-desc {
+      font-size: 0.8rem;
+      color: var(--gray-500);
+    }
+    /* End of user type radio button styles */
+
+    @media (max-width: 480px) {
+        .user-type-option label {
+            flex-direction: column;
+            align-items: flex-start;
+        }
+        .option-icon {
+            margin-bottom: 8px;
+        }
     }
   `]
 })
-export class RegisterComponent {
+export class RegisterComponent implements OnInit {
   registerForm: FormGroup;
   isSubmitting = false;
   showPassword = false;
-  passwordMismatch = false;
   
-  constructor(private fb: FormBuilder) {
+  departements: Departement[] = [];
+  isLoadingDepartements = false;
+  private apiUrl = environment.apiUrl;
+
+  constructor(
+    private fb: FormBuilder,
+    private http: HttpClient,
+    private router: Router,
+    private authService: AuthService
+  ) {
     this.registerForm = this.fb.group({
-      userType: ['per', Validators.required],
-      firstName: ['', Validators.required],
-      lastName: ['', Validators.required],
-      email: ['', [Validators.required, Validators.email]],
-      department: ['', Validators.required],
-      password: ['', [Validators.required, Validators.minLength(6)]],
-      confirmPassword: ['', Validators.required],
+      nom: ['', [Validators.required, Validators.maxLength(255)]],
+      prenom: ['', [Validators.required, Validators.maxLength(255)]],
+      email: ['', [Validators.required, Validators.email, Validators.maxLength(255)]],
+      password: ['', [Validators.required, Validators.minLength(8)]],
+      password_confirmation: ['', Validators.required],
+      telephone: ['', Validators.maxLength(20)],
+      type_personnel: ['PER', Validators.required], // PER or PATS
+      departement_id: [{ value: null, disabled: false }],
       termsAccepted: [false, Validators.requiredTrue]
-    });
-    
-    this.registerForm.valueChanges.subscribe(() => {
-      this.checkPasswordMatch();
-    });
+    }, { validators: passwordMatchValidator });
   }
-  
-  get userTypeValue() { return this.registerForm.get('userType')?.value; }
-  get firstName() { return this.registerForm.get('firstName'); }
-  get lastName() { return this.registerForm.get('lastName'); }
+
+  ngOnInit(): void {
+    this.loadDepartements();
+    this.onUserTypeChange(); 
+  }
+
+  loadDepartements(): void {
+    this.isLoadingDepartements = true;
+    this.http.get<Departement[]>(`${this.apiUrl}/departement`)
+      .subscribe({
+        next: (data) => {
+          this.departements = data;
+          this.isLoadingDepartements = false;
+        },
+        error: (err) => {
+          console.error('Failed to load departements', err);
+          this.isLoadingDepartements = false;
+        }
+      });
+  }
+
+  get nom() { return this.registerForm.get('nom'); }
+  get prenom() { return this.registerForm.get('prenom'); }
   get email() { return this.registerForm.get('email'); }
-  get department() { return this.registerForm.get('department'); }
   get password() { return this.registerForm.get('password'); }
-  get confirmPassword() { return this.registerForm.get('confirmPassword'); }
+  get password_confirmation() { return this.registerForm.get('password_confirmation'); }
+  get telephone() { return this.registerForm.get('telephone'); }
+  get type_personnel() { return this.registerForm.get('type_personnel'); }
+  get departement_id() { return this.registerForm.get('departement_id'); }
   get termsAccepted() { return this.registerForm.get('termsAccepted'); }
-  
-  onUserTypeChange(userType: string) {
-    if (userType === 'pats') {
-      this.registerForm.get('department')?.clearValidators();
-      this.registerForm.get('department')?.updateValueAndValidity();
-    } else {
-      this.registerForm.get('department')?.setValidators(Validators.required);
-      this.registerForm.get('department')?.updateValueAndValidity();
+
+  onUserTypeChange() {
+    const type = this.type_personnel?.value;
+    const departmentControl = this.registerForm.get('departement_id');
+
+    if (type === 'PER') {
+      departmentControl?.enable();
+    } else { // PATS
+      departmentControl?.disable();
+      departmentControl?.setValue(null); 
+      departmentControl?.clearValidators(); 
     }
+    departmentControl?.updateValueAndValidity();
   }
   
   togglePasswordVisibility() {
     this.showPassword = !this.showPassword;
   }
   
-  checkPasswordMatch() {
-    const password = this.registerForm.get('password')?.value;
-    const confirmPassword = this.registerForm.get('confirmPassword')?.value;
-    
-    if (password && confirmPassword) {
-      this.passwordMismatch = password !== confirmPassword;
-    } else {
-      this.passwordMismatch = false;
-    }
-  }
-  
   onSubmit() {
-    if (this.registerForm.invalid || this.passwordMismatch) return;
+    if (this.registerForm.invalid) {
+      this.registerForm.markAllAsTouched();
+      return;
+    }
     
     this.isSubmitting = true;
-    
-    // Simulate API call
-    setTimeout(() => {
-      this.isSubmitting = false;
-      // Handle registration response here
-      console.log('Form submitted', this.registerForm.value);
-    }, 1500);
+    const rawFormData = this.registerForm.getRawValue();
+
+    const payload = {
+      nom: rawFormData.nom,
+      prenom: rawFormData.prenom,
+      email: rawFormData.email,
+      password: rawFormData.password,
+      password_confirmation: rawFormData.password_confirmation,
+      telephone: rawFormData.telephone || null,
+      type_personnel: rawFormData.type_personnel,
+      departement_id: rawFormData.type_personnel === 'PER' ? rawFormData.departement_id : null
+    };
+
+    console.log('Form submitted. Payload:', payload);
+    this.http.post<LoginResponse>(`${this.apiUrl}/register`, payload)
+      .subscribe({
+        next: (response) => {
+          this.isSubmitting = false;
+          console.log('Registration successful', response);
+
+          if (response && response.access_token) {
+            this.authService.setToken(response.access_token);
+            if (response.user) {
+              this.authService.setCurrentUser(response.user);
+            } else {
+              this.authService.fetchUser().subscribe();
+            }
+            this.router.navigate(['/dashboard']);
+          } else {
+            this.router.navigate(['/auth/login'], { queryParams: { registrationSuccess: true, loginRequired: true } });
+          }
+        },
+        error: (error) => {
+          this.isSubmitting = false;
+          console.error('Registration failed', error);
+        }
+      });
   }
 }

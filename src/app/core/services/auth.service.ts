@@ -47,26 +47,13 @@ export class AuthService {
   private loadCurrentUser(): void {
     const token = this.getToken();
     if (!token) {
+      this.currentUserSubject.next(null);
       this.isLoadingSubject.next(false);
+      this.initialized = true;
       return;
     }
 
-    this.fetchUser().pipe(
-      catchError(() => {
-        this.clearTokenAndNavigateToLogin();
-        return of(null);
-      }),
-      finalize(() => {
-        this.isLoadingSubject.next(false);
-        this.initialized = true;
-      })
-    ).subscribe({
-      next: (user) => {
-        if (user) {
-          this.currentUserSubject.next(user);
-        }
-      }
-    });
+    this.fetchUser().subscribe();
   }
 
   public get currentUserValue(): User | null {
@@ -77,12 +64,18 @@ export class AuthService {
     return localStorage.getItem(this.tokenKey);
   }
 
-  private setToken(token: string): void {
+  public setToken(token: string): void {
     localStorage.setItem(this.tokenKey, token);
   }
 
   private clearToken(): void {
     localStorage.removeItem(this.tokenKey);
+  }
+
+  public setCurrentUser(user: User | null): void {
+    this.currentUserSubject.next(user);
+    this.initialized = !!user;
+    this.isLoadingSubject.next(false);
   }
   
   private clearTokenAndNavigateToLogin(): void {
@@ -92,29 +85,24 @@ export class AuthService {
   }
 
   login(credentials: { email: string, password: string }): Observable<LoginResponse> {
+    this.isLoadingSubject.next(true);
     return this.http.post<LoginResponse>(`${this.apiUrl}/login`, credentials).pipe(
       tap(response => {
         if (response && response.access_token) {
           this.setToken(response.access_token);
-          if (response.user) {
-            this.currentUserSubject.next(response.user);
-            this.initialized = true;
-          } else {
-            // If user data is not included in login response, fetch it
-            this.fetchUser().subscribe({
-              next: (user) => {
-                if (user) {
-                  this.currentUserSubject.next(user);
-                  this.initialized = true;
-                }
-              },
-              error: (error) => {
-                console.error('Error fetching user after login:', error);
-                this.clearTokenAndNavigateToLogin();
-              }
-            });
-          }
+          this.fetchUser().subscribe();
+        } else {
+          this.currentUserSubject.next(null);
+          this.initialized = false;
+          this.isLoadingSubject.next(false);
         }
+      }),
+      catchError(err => {
+        this.clearToken();
+        this.currentUserSubject.next(null);
+        this.initialized = false;
+        this.isLoadingSubject.next(false);
+        throw err;
       })
     );
   }
@@ -132,16 +120,25 @@ export class AuthService {
     const token = this.getToken();
     if (!token) {
       this.currentUserSubject.next(null);
+      this.isLoadingSubject.next(false);
+      this.initialized = true;
       return of(null);
     }
+
+    this.isLoadingSubject.next(true);
     const headers = new HttpHeaders().set('Authorization', `Bearer ${token}`);
     return this.http.get<User>(`${this.apiUrl}/user`, { headers }).pipe(
       tap(user => {
         this.currentUserSubject.next(user);
+        this.initialized = true;
       }),
       catchError(error => {
         this.clearTokenAndNavigateToLogin();
+        this.initialized = true;
         return of(null);
+      }),
+      finalize(() => {
+        this.isLoadingSubject.next(false);
       })
     );
   }
