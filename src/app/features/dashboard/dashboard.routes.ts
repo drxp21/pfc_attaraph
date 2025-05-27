@@ -19,6 +19,10 @@ export const DASHBOARD_ROUTES: Routes = [
         loadComponent: () => import('./components/election-details/election-details.component').then(c => c.ElectionDetailsComponent)
       },
       {
+        path: 'elections/election/:id/results',
+        loadComponent: () => import('./components/election-results/election-results.component').then(c => c.ElectionResultsComponent)
+      },
+      {
         path: 'elections/:id/vote',
         loadComponent: () => import('../elections/vote/vote.component').then(c => c.VoteComponent)
       },
@@ -68,10 +72,7 @@ export const DASHBOARD_ROUTES: Routes = [
             path: 'departements',
             loadComponent: () => import('../admin/components/departements/departements.component').then(c => c.DepartementsComponent)
           },
-          {
-            path: 'resultats/:id',
-            loadComponent: () => import('../results/results.component').then(c => c.ResultsComponent)
-          },
+          
           {
             path: '',
             redirectTo: 'elections',

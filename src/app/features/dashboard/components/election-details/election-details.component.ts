@@ -4,6 +4,9 @@ import { ActivatedRoute, Router, RouterModule } from '@angular/router';
 import { ElectionService, Election } from '../../../../core/services/election.service';
 import { VoteService } from '../../../../core/services/vote.service';
 import { FormsModule } from '@angular/forms';
+import { AuthService } from '../../../../core/services/auth.service';
+// Assuming AuthService is available for role checking
+// import { AuthService } from '../../../../core/services/auth.service';
 
 @Component({
   selector: 'app-election-details',
@@ -11,10 +14,15 @@ import { FormsModule } from '@angular/forms';
   imports: [CommonModule, RouterModule, FormsModule],
   template: `
     <div class="election-details-container">
-      <button class="btn btn-link mb-3" (click)="goBack()">
-        &larr; Retour aux élections
-      </button>
-
+    <div class="admin-actions mt-4 pt-3 border-top">
+     <h4>Actions Administrateur</h4>
+     <button class="btn btn-warning" (click)="closeAndCalculateElection()">
+       Fermer l'élection
+     </button>
+      <div *ngIf="actionMessage" class="alert mt-2" [ngClass]="actionMessageType === 'success' ? 'alert-success' : 'alert-danger'">
+       {{ actionMessage }}
+     </div>
+   </div>
       <div *ngIf="election" class="election-card">
         <div class="election-header">
           <h2>{{ election.titre }}</h2>
@@ -23,8 +31,8 @@ import { FormsModule } from '@angular/forms';
             'bg-warning': election.statut === 'BROUILLON',
             'bg-secondary': election.statut === 'FERMEE'
           }">
-            {{ election.statut === 'EN_COURS' ? 'En cours' : 
-               election.statut === 'BROUILLON' ? 'À venir' : 'Terminée' }}
+            {{ election.statut === 'EN_COURS' ? 'En cours' : election.statut === 'BROUILLON' ? 'À venir' : election.statut === 'OUVERTE' ? 'Ouverte' : election.statut === 'FERMEE' ? 'Fermée' : 'Terminée'                }}
+               
           </span>
         </div>
 
@@ -61,7 +69,10 @@ import { FormsModule } from '@angular/forms';
           </div>
         </div>
 
-        <div class="vote-actions" *ngIf="election.statut === 'EN_COURS' && !hasVoted">
+        <!-- Admin Actions Section -->
+     
+
+        <div class="vote-actions" *ngIf="election.statut === 'EN_COURS' && !hasVoted && !isAdmin">
           <div class="form-check mb-3">
             <input class="form-check-input" type="checkbox" id="blankVote" [(ngModel)]="isBlankVote" (change)="onBlankVoteChange()">
             <label class="form-check-label" for="blankVote">
@@ -77,13 +88,8 @@ import { FormsModule } from '@angular/forms';
           </div>
         </div>
 
-        <div *ngIf="hasVoted" class="alert alert-success">
-          Vous avez déjà pour cette élection. Merci pour votre participation !
-        </div>
-
-        <div *ngIf="election.statut === 'FERMEE'" class="alert alert-info">
-          Cette élection est terminée. Les résultats sont disponibles ci-dessous.
-          <button class="btn btn-link p-0 ms-2" (click)="viewResults()">Voir les résultats</button>
+        <div *ngIf="hasVoted && !isAdmin" class="alert alert-success">
+          Vous avez voté pour cette élection. Merci pour votre participation !
         </div>
       </div>
 
@@ -270,6 +276,15 @@ import { FormsModule } from '@angular/forms';
     .form-check-input {
       margin-right: 0.5rem;
     }
+    
+    .admin-actions {
+      margin-top: 2rem;
+      padding-top: 1.5rem;
+      border-top: 1px solid #eee;
+    }
+    .admin-actions h4 {
+      margin-bottom: 1rem;
+    }
   `]
 })
 export class ElectionDetailsComponent implements OnInit {
@@ -280,64 +295,70 @@ export class ElectionDetailsComponent implements OnInit {
   hasVoted = false;
   errorMessage: string | null = null;
   isLoading = true;
+  isAdmin = false; // Placeholder: Implement actual admin check
+  actionMessage: string | null = null;
+  actionMessageType: 'success' | 'error' | null = null;
 
   constructor(
     private route: ActivatedRoute,
     private router: Router,
     private electionService: ElectionService,
-    private voteService: VoteService
+    private voteService: VoteService,
+    private authService: AuthService,
+    // private authService: AuthService // Inject if needed for isAdmin check
   ) { }
 
   ngOnInit() {
+    // Placeholder for isAdmin check - replace with actual logic from AuthService
+    this.isAdmin = this.authService.getUserRole() === 'ADMIN'; 
     this.loadElection();
   }
 
   loadElection() {
+    this.isLoading = true;
     const id = this.route.snapshot.paramMap.get('id');
-    if (!id) {
+    if (id) {
+      this.electionService.getElection(+id).subscribe({
+        next: (data) => {
+          this.election = data;
+          if (this.election.statut === 'EN_COURS') {
+            this.checkIfVoted(); // Only check if voted if election is in progress
+          } else {
+            this.isLoading = false;
+          }
+        },
+        error: (err) => {
+          console.error('Error loading election:', err);
+          this.errorMessage = "Impossible de charger les détails de l'élection.";
+          this.isLoading = false;
+        }
+      });
+    } else {
+      this.errorMessage = "ID de l'élection non trouvé.";
       this.isLoading = false;
-      return;
     }
-
-    this.electionService.getElection(+id).subscribe({
-      next: (election) => {
-        this.election = election;
-        this.checkIfVoted();
-      },
-      error: (error) => {
-        console.error('Error loading election:', error);
-        this.errorMessage = 'Erreur lors du chargement de l\'élection';
-        this.isLoading = false;
-      }
-    });
   }
 
   checkIfVoted() {
     if (!this.election) return;
-
     this.voteService.hasVoted(this.election.id).subscribe({
       next: (response: any) => {
-        // Handle both direct boolean response and object with hasVoted property
         this.hasVoted = typeof response === 'boolean' ? response : response?.hasVoted === true;
         this.isLoading = false;
       },
       error: (error) => {
         console.error('Error checking vote status:', error);
-        this.hasVoted = false; // Default to false on error
+        this.hasVoted = false; 
         this.isLoading = false;
       }
     });
   }
 
   selectCandidate(candidate: any) {
-    if (this.isSubmitting || this.hasVoted || this.election?.statut !== 'EN_COURS') return;
-    
-    if (this.selectedCandidate?.id === candidate.id) {
-      this.selectedCandidate = null;
-    } else {
-      this.selectedCandidate = candidate;
+    if (this.isBlankVote) {
       this.isBlankVote = false;
     }
+    this.selectedCandidate = candidate;
   }
 
   onBlankVoteChange() {
@@ -347,10 +368,7 @@ export class ElectionDetailsComponent implements OnInit {
   }
 
   canVote(): boolean {
-    if (this.isSubmitting || this.hasVoted || this.election?.statut !== 'EN_COURS') {
-      return false;
-    }
-    return this.isBlankVote || !!this.selectedCandidate;
+    return !this.isSubmitting && (this.isBlankVote || this.selectedCandidate !== null);
   }
 
   submitVote() {
@@ -369,7 +387,9 @@ export class ElectionDetailsComponent implements OnInit {
       next: (response) => {
         this.hasVoted = true;
         this.isSubmitting = false;
-        // Optionally show a success message or redirect
+        this.actionMessage = 'Votre vote a été enregistré avec succès!';
+        this.actionMessageType = 'success';
+        // Optionally navigate or show persistent success message
       },
       error: (error) => {
         console.error('Error submitting vote:', error);
@@ -379,12 +399,31 @@ export class ElectionDetailsComponent implements OnInit {
     });
   }
 
-  viewResults() {
-    if (!this.election) return;
-    this.router.navigate(['/dashboard/elections', this.election.id, 'results']);
+  closeAndCalculateElection(): void {
+    if (!this.election || !this.isAdmin) return;
+    this.actionMessage = null;
+    this.electionService.closeElection(this.election.id).subscribe({
+      next: () => {
+        this.actionMessage = 'L\'élection a été fermée avec succès. Le calcul des résultats est en cours.';
+        this.actionMessageType = 'success';
+        this.election!.statut = 'FERMEE'; // Update status locally
+        // Optionally, navigate to results page or refresh data more thoroughly
+        // this.loadElection(); // to refresh everything including disabling the button
+         this.router.navigate(['../results'], { relativeTo: this.route });
+      },
+      error: (err) => {
+        console.error('Error closing election:', err);
+        this.actionMessage = err.error?.message || 'Erreur lors de la fermeture de l\'élection.';
+        this.actionMessageType = 'error';
+      }
+    });
+  }
+
+  viewResults(election: Election) {
+    this.router.navigate(['election', election.id, 'results'], { relativeTo: this.route });
   }
 
   goBack() {
-    this.router.navigate(['/dashboard/elections']);
+    this.router.navigate(['../'], { relativeTo: this.route }); // Navigate to parent (elections list)
   }
 }

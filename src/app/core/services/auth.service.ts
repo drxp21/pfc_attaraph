@@ -1,7 +1,7 @@
 import { Injectable } from '@angular/core';
 import { HttpClient, HttpHeaders } from '@angular/common/http';
 import { Router } from '@angular/router';
-import { Observable, BehaviorSubject, tap, of, catchError, finalize } from 'rxjs';
+import { Observable, BehaviorSubject, tap, of, catchError, finalize, switchMap, map, throwError } from 'rxjs';
 import { environment } from '../../../environments/environment';
 
 export interface User {
@@ -47,13 +47,26 @@ export class AuthService {
   private loadCurrentUser(): void {
     const token = this.getToken();
     if (!token) {
-      this.currentUserSubject.next(null);
       this.isLoadingSubject.next(false);
-      this.initialized = true;
       return;
     }
 
-    this.fetchUser().subscribe();
+    this.fetchUser().pipe(
+      catchError(() => {
+        this.clearTokenAndNavigateToLogin();
+        return of(null);
+      }),
+      finalize(() => {
+        this.isLoadingSubject.next(false);
+        this.initialized = true;
+      })
+    ).subscribe({
+      next: (user) => {
+        if (user) {
+          this.currentUserSubject.next(user);
+        }
+      }
+    });
   }
 
   public get currentUserValue(): User | null {
@@ -87,14 +100,22 @@ export class AuthService {
   login(credentials: { email: string, password: string }): Observable<LoginResponse> {
     this.isLoadingSubject.next(true);
     return this.http.post<LoginResponse>(`${this.apiUrl}/login`, credentials).pipe(
-      tap(response => {
+      switchMap(response => {
         if (response && response.access_token) {
           this.setToken(response.access_token);
-          this.fetchUser().subscribe();
+          return this.fetchUser().pipe(
+            map(user => {
+              if (!user) {
+                throw new Error('Failed to fetch user after login.');
+              }
+              return response;
+            })
+          );
         } else {
           this.currentUserSubject.next(null);
           this.initialized = false;
           this.isLoadingSubject.next(false);
+          return throwError(() => new Error('Login failed: No access token received.'));
         }
       }),
       catchError(err => {
@@ -102,7 +123,7 @@ export class AuthService {
         this.currentUserSubject.next(null);
         this.initialized = false;
         this.isLoadingSubject.next(false);
-        throw err;
+        return throwError(() => err);
       })
     );
   }
@@ -120,25 +141,24 @@ export class AuthService {
     const token = this.getToken();
     if (!token) {
       this.currentUserSubject.next(null);
+      this.initialized = false;
       this.isLoadingSubject.next(false);
-      this.initialized = true;
       return of(null);
     }
 
-    this.isLoadingSubject.next(true);
     const headers = new HttpHeaders().set('Authorization', `Bearer ${token}`);
-    return this.http.get<User>(`${this.apiUrl}/user`, { headers }).pipe(
+    return this.http.get<any>(`${this.apiUrl}/user`, { headers }).pipe(
       tap(user => {
-        this.currentUserSubject.next(user);
+        this.currentUserSubject.next(user.user);
         this.initialized = true;
+        this.isLoadingSubject.next(false);
       }),
       catchError(error => {
-        this.clearTokenAndNavigateToLogin();
-        this.initialized = true;
-        return of(null);
-      }),
-      finalize(() => {
+        this.clearToken();
+        this.currentUserSubject.next(null);
+        this.initialized = false;
         this.isLoadingSubject.next(false);
+        return of(null);
       })
     );
   }

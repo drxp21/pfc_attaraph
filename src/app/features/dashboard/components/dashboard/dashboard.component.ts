@@ -64,10 +64,10 @@ import { Subscription } from 'rxjs';
                 <span class="nav-icon">✅</span>
                 Validation Candidatures
               </a>
-              <a routerLink="admin/security" routerLinkActive="active" class="nav-item">
+             <!-- <a routerLink="admin/security" routerLinkActive="active" class="nav-item">
                 <span class="nav-icon">🔒</span>
                 Sécurité
-              </a>
+              </a> -->
               <a routerLink="admin/stats" routerLinkActive="active" class="nav-item">
                 <span class="nav-icon">📈</span>
                 Statistiques

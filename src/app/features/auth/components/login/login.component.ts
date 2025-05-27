@@ -239,27 +239,19 @@ export class LoginComponent {
   
   onSubmit() {
     if (this.loginForm.invalid) return;
-    
+
     this.isSubmitting = true;
     this.loginError = null;
-    
+
     const { email, password } = this.loginForm.value;
 
     this.authService.login({ email, password }).pipe(
       finalize(() => this.isSubmitting = false)
     ).subscribe({
       next: (response) => {
-        if (response.user) {
-          // If we have the user data in the response, navigate immediately
-          this.router.navigate(['/dashboard']);
-        } else {
-          // Wait for user data to be fetched
-          this.authService.currentUser$.subscribe(user => {
-            if (user) {
-              this.router.navigate(['/dashboard']);
-            }
-          });
-        }
+        // AuthService.login now ensures fetchUser is complete and currentUser$ is updated.
+        // So, if we reach here, login was successful, token is set, and user is fetched.
+        this.router.navigate(['/dashboard']);
       },
       error: (error: any) => {
         this.loginError = error.error?.message || error.message || 'Email ou mot de passe incorrect';

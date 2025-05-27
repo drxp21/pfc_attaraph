@@ -261,22 +261,22 @@
     letter-spacing: 0.5px;
   }
   
-  .status-badge.brouillon {
+  .status-badge.BROUILLON {
     background: rgba(158, 158, 158, 0.1);
     color: #757575;
   }
   
-  .status-badge.ouverte {
+  .status-badge.OUVERTE {
     background: rgba(76, 175, 80, 0.1);
     color: #388e3c;
   }
   
-  .status-badge.en-cours {
+  .status-badge.EN_COURS {
     background: rgba(33, 150, 243, 0.1);
     color: #1976d2;
   }
   
-  .status-badge.fermee {
+  .status-badge.FERMEE {
     background: rgba(244, 67, 54, 0.1);
     color: #d32f2f;
   }
@@ -688,12 +688,12 @@
                 Ouvrir
               </button>
               <button
-                *ngIf="election.statut === 'OUVERTE' || election.statut === 'EN_COURS'"
+                *ngIf="election.statut === 'EN_COURS'"
                 (click)="closeElection(election.id)"
-                class="btn btn-sm btn-warning"
+                class="btn btn-warning btn-sm"
                 title="Fermer l'élection"
               >
-                Fermer
+                Fermer Élection
               </button>
               <!-- Button to navigate to validate candidatures for this election -->
               <a
@@ -705,14 +705,10 @@
               >
                 Valider Candidatures
               </a>
-              <a
-                *ngIf="election.statut === 'FERMEE'"
-                [routerLink]="['/election', election.id, 'results']"
-                class="btn btn-sm btn-info"
-                title="Voir les résultats"
-              >
-                Voir Résultats
-              </a>
+            <button class="btn btn-info" *ngIf="election.statut === 'FERMEE'"
+                    (click)="viewResults(election); $event.stopPropagation()">
+              Voir les résultats ---
+            </button>
               <button
                 class="btn-icon"
                 title="Modifier"

@@ -140,7 +140,7 @@ interface Departement {
                 </div>
                  <div *ngIf="type_personnel?.invalid && (type_personnel?.dirty || type_personnel?.touched)" class="error-message">
                     <span *ngIf="type_personnel?.errors?.['required']">Le type de personnel est requis.</span>
-                </div>
+              </div>
             </div>
             
             <div class="form-group">
@@ -150,7 +150,7 @@ interface Departement {
                 *ngIf="!isLoadingDepartements"
                 id="departement_id" 
                 formControlName="departement_id" 
-                class="form-control"
+                class="form-control" 
                 [class.is-invalid]="departement_id?.invalid && (departement_id?.dirty || departement_id?.touched)">
                 <option [ngValue]="null" disabled>Sélectionnez votre département</option>
                 <option *ngFor="let dept of departements" [value]="dept.id">{{ dept.nom }}</option>
@@ -161,41 +161,41 @@ interface Departement {
             </div>
             
             <div class="form-row">
-              <div class="form-group">
-                <label for="password">Mot de passe</label>
-                <div class="password-input-wrapper">
-                  <input 
-                    [type]="showPassword ? 'text' : 'password'" 
-                    id="password" 
-                    formControlName="password" 
-                    class="form-control" 
-                    [class.is-invalid]="password?.invalid && (password?.dirty || password?.touched)"
-                    placeholder="Choisissez un mot de passe">
-                  <button 
-                    type="button" 
-                    class="password-toggle" 
-                    (click)="togglePasswordVisibility()">
-                    <svg *ngIf="!showPassword" xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"></path><circle cx="12" cy="12" r="3"></circle></svg>
-                    <svg *ngIf="showPassword" xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"></path><circle cx="12" cy="12" r="3"></circle><line x1="1" y1="1" x2="23" y2="23"></line></svg>
-                  </button>
-                </div>
-                <div *ngIf="password?.invalid && (password?.dirty || password?.touched)" class="error-message">
+            <div class="form-group">
+              <label for="password">Mot de passe</label>
+              <div class="password-input-wrapper">
+                <input 
+                  [type]="showPassword ? 'text' : 'password'" 
+                  id="password" 
+                  formControlName="password" 
+                  class="form-control" 
+                  [class.is-invalid]="password?.invalid && (password?.dirty || password?.touched)"
+                  placeholder="Choisissez un mot de passe">
+                <button 
+                  type="button" 
+                  class="password-toggle" 
+                  (click)="togglePasswordVisibility()">
+                  <svg *ngIf="!showPassword" xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"></path><circle cx="12" cy="12" r="3"></circle></svg>
+                  <svg *ngIf="showPassword" xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"></path><circle cx="12" cy="12" r="3"></circle><line x1="1" y1="1" x2="23" y2="23"></line></svg>
+                </button>
+              </div>
+              <div *ngIf="password?.invalid && (password?.dirty || password?.touched)" class="error-message">
                   <span *ngIf="password?.errors?.['required']">Le mot de passe est requis.</span>
                   <span *ngIf="password?.errors?.['minlength']">Le mot de passe doit contenir au moins 8 caractères.</span>
                 </div>
-              </div>
-              
-              <div class="form-group">
+            </div>
+            
+            <div class="form-group">
                 <label for="password_confirmation">Confirmer le mot de passe</label>
-                <div class="password-input-wrapper">
-                  <input 
-                    [type]="showPassword ? 'text' : 'password'" 
+              <div class="password-input-wrapper">
+                <input 
+                  [type]="showPassword ? 'text' : 'password'" 
                     id="password_confirmation" 
                     formControlName="password_confirmation" 
-                    class="form-control" 
+                  class="form-control" 
                     [class.is-invalid]="(password_confirmation?.invalid && (password_confirmation?.dirty || password_confirmation?.touched)) || registerForm.errors?.['passwordMismatch'] && (password?.touched && password_confirmation?.touched)"
-                    placeholder="Confirmez votre mot de passe">
-                </div>
+                  placeholder="Confirmez votre mot de passe">
+              </div>
                 <div *ngIf="(password_confirmation?.invalid && (password_confirmation?.dirty || password_confirmation?.touched)) || registerForm.errors?.['passwordMismatch'] && (password?.touched && password_confirmation?.touched)" class="error-message">
                   <span *ngIf="password_confirmation?.errors?.['required']">La confirmation du mot de passe est requise.</span>
                   <span *ngIf="registerForm.errors?.['passwordMismatch'] && !password_confirmation?.errors?.['required']">Les mots de passe ne correspondent pas.</span>
@@ -537,7 +537,7 @@ interface Departement {
         }
         .option-icon {
             margin-bottom: 8px;
-        }
+      }
     }
   `]
 })
@@ -598,7 +598,7 @@ export class RegisterComponent implements OnInit {
   get type_personnel() { return this.registerForm.get('type_personnel'); }
   get departement_id() { return this.registerForm.get('departement_id'); }
   get termsAccepted() { return this.registerForm.get('termsAccepted'); }
-
+  
   onUserTypeChange() {
     const type = this.type_personnel?.value;
     const departmentControl = this.registerForm.get('departement_id');
@@ -657,7 +657,7 @@ export class RegisterComponent implements OnInit {
           }
         },
         error: (error) => {
-          this.isSubmitting = false;
+      this.isSubmitting = false;
           console.error('Registration failed', error);
         }
       });

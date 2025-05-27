@@ -1,0 +1,92 @@
+<div class="results-container">
+  <div class="page-header">
+    <button (click)="goBack()" class="btn btn-link back-button">&larr; Retour</button>
+    <h2 *ngIf="electionDetails">Résultats de l'élection : {{ electionDetails.titre }}</h2>
+    <p *ngIf="electionDetails">Type: {{ electionDetails.type_election | formatElectionType }} | Clôturée le: {{ electionDetails.date_fin_vote | date:'dd/MM/yyyy à HH:mm' }}</p>
+  </div>
+
+  <div *ngIf="isLoading" class="loading-indicator">
+    <p>Chargement des résultats...</p>
+    <!-- You can add a spinner or a more sophisticated loading animation here -->
+  </div>
+
+  <div *ngIf="errorMessage" class="error-message">
+    <p>{{ errorMessage }}</p>
+  </div>
+
+  <div *ngIf="!isLoading && !errorMessage && electionResults" class="results-content">
+    
+    <div class="election-summary card">
+      <h3>Statistiques de l'élection</h3>
+      <div class="stats-grid">
+      
+        <div>
+          <span class="stat-label">Votes exprimés</span>
+          <span class="stat-value">{{ electionResults.statistiques.nb_votes_exprimes }}</span>
+        </div>
+        <div>
+          <span class="stat-label">Votes blancs</span>
+          <span class="stat-value">{{ electionResults.statistiques.nb_votes_blancs }}</span>
+        </div>
+        <div>
+          <span class="stat-label">Taux de participation</span>
+          <span class="stat-value">{{ electionResults.statistiques.taux_participation | number:'1.0-2' }}%</span>
+        </div>
+      </div>
+    </div>
+
+    <div class="winner-announcement card" *ngIf="getWinner() as winner">
+        <h3>Résultat principal</h3>
+        <div class="winner-details">
+            <div class="winner-info">
+                <h4>Élu(e): {{ winner.candidature.candidat.prenom }} {{ winner.candidature.candidat.nom }}</h4>
+                <p>Avec {{ winner.nb_voix }} voix ({{ winner.pourcentage | number:'1.2-2' }}%)</p>
+            </div>
+        </div>
+    </div>
+    <div class *ngIf="!getWinner() && electionResults.resultats.length === 0 && electionResults.statistiques.nb_votes_exprimes > 0">
+        <p>Aucun candidat n'a été élu (par exemple, majorité non atteinte, ou autres règles spécifiques non remplies).</p>
+    </div>
+    <div class *ngIf="!getWinner() && electionResults.resultats.length === 0 && electionResults.statistiques.nb_votes_exprimes === 0">
+        <p>Aucun vote n'a été exprimé pour cette élection, ou aucun candidat ne s'est présenté.</p>
+    </div>
+
+
+    <div class="results-table card" *ngIf="electionResults.resultats.length > 0">
+      <h3>Résultats détaillés par candidat</h3>
+      <table>
+        <thead>
+          <tr>
+            <th>Rang</th>
+            <th>Candidat</th>
+            <th>Programme (Extrait)</th>
+            <th>Voix obtenues</th>
+            <th>Pourcentage</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr *ngFor="let result of electionResults.resultats" [class.is-winner]="result.rang === 1">
+            <td>{{ result.rang }}</td>
+            <td>
+              <strong>{{ result.candidature.candidat.prenom }} {{ result.candidature.candidat.nom }}</strong><br>
+              <small>{{ result.candidature.candidat.email }}</small>
+            </td>
+            <td>
+              <details>
+                <summary>Voir programme</summary>
+                <pre class="programme-preview">{{ result.candidature.programme | slice:0:200 }}{{ result.candidature.programme.length > 200 ? '...' : '' }}</pre>
+              </details>
+            </td>
+            <td>{{ result.nb_voix }}</td>
+            <td>{{ result.pourcentage | number:'1.2-2' }}%</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+
+    <div *ngIf="electionResults.resultats.length === 0 && electionResults.statistiques.nb_votes_exprimes > 0" class="no-candidates-results">
+        <p>Il n'y avait pas de candidats pour cette élection, mais des votes (probablement blancs) ont été enregistrés.</p>
+    </div>
+
+  </div>
+</div> 

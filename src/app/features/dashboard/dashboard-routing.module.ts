@@ -1,6 +1,6 @@
 import { NgModule } from '@angular/core';
 import { RouterModule, Routes } from '@angular/router';
-import { DashboardComponent } from './dashboard.component';
+import { DashboardComponent } from './components/dashboard/dashboard.component';
 
 const routes: Routes = [
   {
@@ -20,15 +20,7 @@ const routes: Routes = [
         path: 'vote/:id',
         loadComponent: () => import('../elections/vote/vote.component').then(m => m.VoteComponent)
       },
-      {
-        path: 'election/:id/candidates',
-        loadComponent: () => import('../elections/candidates/candidates.component').then(m => m.CandidatesComponent)
-      },
-      {
-        path: 'election/:id/results',
-        loadComponent: () => import('../elections/results/results.component').then(m => m.ResultsComponent)
-      },
-      {
+            {
         path: 'candidature',
         loadComponent: () => import('./components/candidature/candidature.component').then(m => m.CandidatureComponent)
       },

@@ -5,6 +5,7 @@ import { Observable } from 'rxjs';
 import { map } from 'rxjs/operators'; // Import map operator
 import { AuthService, User as AuthUser } from './auth.service'; // For getting auth headers, aliasing User to avoid conflict
 import { Candidature } from './candidature.service';
+import { ElectionResultsData } from '../models/election-results.model';
 
 export type TypeElection = 'CHEF_DEPARTEMENT' | 'DIRECTEUR_UFR' | 'VICE_RECTEUR';
 
@@ -26,7 +27,7 @@ export interface Election {
   date_fin_candidature: string;
   date_debut_vote: string;
   date_fin_vote: string;
-  statut: 'BROUILLON'| 'OUVERTE'| 'EN_COURS'| 'FERMEE';
+  statut: 'BROUILLON'| 'OUVERTE'| 'EN_COURS'| 'FERMEE'| 'TERMINEE';
   created_by?: AuthUser; // Added created_by from backend response
   departement?: ElectionDepartement | null; // Added departement object from backend response
   // Optional fields from original interface, review if still needed or if covered by backend response
@@ -95,8 +96,8 @@ export class ElectionService {
     return this.http.post(`${this.apiUrl}/${id}/fermer`, {}, { headers: this.authService.getAuthHeaders() });
   }
 
-  getElectionResults(electionId: number): Observable<any> {
-    return this.http.get(`${this.apiUrl}/${electionId}/resultats`, { headers: this.authService.getAuthHeaders() });
+  getElectionResults(electionId: number): Observable<ElectionResultsData> {
+    return this.http.get<ElectionResultsData>(`${this.apiUrl}/${electionId}/resultats`, { headers: this.authService.getAuthHeaders() });
   }
 
   calculateResults(electionId: number): Observable<any> {

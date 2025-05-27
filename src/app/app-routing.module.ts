@@ -13,11 +13,7 @@ const routes: Routes = [
     loadChildren: () => import('./features/dashboard/dashboard.module').then(m => m.DashboardModule),
     canActivate: [AuthGuard]
   },
-  {
-    path: 'election/:id/results',
-    loadComponent: () => import('./features/elections/results/results.component').then(m => m.ResultsComponent),
-    canActivate: [AuthGuard]
-  }
+  
 ];
 
 @NgModule({
