@@ -1,9 +1,9 @@
-import { Component } from '@angular/core';
+import { Component, OnInit } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { RouterModule, Router, ActivatedRoute } from '@angular/router';
 import { ElectionService, Election } from '../../../../core/services/election.service';
 import { FormatElectionTypePipe } from '../../../elections/elections-list/elections-list.component';
-import { VoteService } from '../../../../core/services/vote.service';
+import { AuthService } from '../../../../core/services/auth.service';
 
 @Component({
   selector: 'app-elections',
@@ -20,8 +20,8 @@ import { VoteService } from '../../../../core/services/vote.service';
         <div *ngFor="let election of elections" class="election-card" (click)="viewElection(election)" style="cursor: pointer;">
           <div class="election-header">
             <span class="election-type">{{ election.type_election | formatElectionType }}</span>
-            <span class="election-statut" [class]="election.statut">
-             {{ election.statut === 'EN_COURS' ? 'En cours' : election.statut === 'BROUILLON' ? 'À venir' : election.statut === 'OUVERTE' ? 'Ouverte' : election.statut === 'FERMEE' ? 'Fermée' : 'Terminée'                }}
+            <span class="election-statut" [class]="getStatutClass(election.statut)">
+             {{ mapStatutForDisplay(election.statut) }}
             </span>
           </div>
 
@@ -44,17 +44,23 @@ import { VoteService } from '../../../../core/services/vote.service';
           </div>
 
           <div class="election-actions" style="justify-content: flex-end;">
-            <button class="btn btn-primary" *ngIf="election.statut === 'EN_COURS'"
-                    (click)="vote(election); $event.stopPropagation()">
+            <button class="btn btn-primary" *ngIf="election.statut === 'EN_COURS' && !hasVoted(election)"
+                    (click)="viewCandidates(election); $event.stopPropagation()">
               Voter
             </button>
             <button class="btn btn-outline" *ngIf="election.statut === 'EN_COURS'"
                     (click)="viewCandidates(election); $event.stopPropagation()">
               Voir les candidats
             </button>
-            <button class="btn btn-info" *ngIf="election.statut === 'FERMEE'"
+            <button class="btn btn-info" *ngIf="election.statut === 'FERMEE' || election.statut === 'TERMINEE'"
                     (click)="viewResults(election); $event.stopPropagation()">
               Voir les résultats
+            </button>
+            <!-- Admin-specific Fermer button -->
+            <button class="btn btn-warning"
+                    *ngIf="isAdmin && election.statut === 'EN_COURS'"
+                    (click)="closeElectionAdmin(election); $event.stopPropagation()">
+              Fermer (Admin)
             </button>
           </div>
         </div>
@@ -1597,42 +1603,95 @@ import { VoteService } from '../../../../core/services/vote.service';
     }
   }`]
 })
-export class ElectionsComponent {
+export class ElectionsComponent implements OnInit {
   elections: Election[] = [];
+  isLoading = true;
+  isAdmin = false;
 
   constructor(
     private electionService: ElectionService,
     private router: Router,
-    private route: ActivatedRoute
-  ) {
+    private route: ActivatedRoute,
+    private authService: AuthService
+  ) {}
+
+  ngOnInit(): void {
     this.loadElections();
+    this.isAdmin = this.authService.getUserRole() === 'ADMIN';
   }
 
   loadElections() {
+    this.isLoading = true;
     this.electionService.getElections().subscribe({
-      next: (elections) => this.elections = elections,
-      error: (err) => console.error('Error loading elections:', err)
+      next: (elections) => {
+        this.elections = elections;
+        this.isLoading = false;
+      },
+      error: (err) => {
+        console.error('Error loading elections:', err);
+        this.isLoading = false;
+      }
     });
   }
 
   viewElection(election: Election, event?: Event) {
-    // Prevent event bubbling if this was called from a button click
     if (event) {
       event.stopPropagation();
     }
     this.router.navigate(['election', election.id], { relativeTo: this.route });
   }
 
-  // Keep this method for backward compatibility
   vote(election: Election) {
-    this.viewElection(election);
+    this.router.navigate(['election', election.id, 'vote'], { relativeTo: this.route });
   }
 
   viewCandidates(election: Election) {
-    this.router.navigate(['election', election.id], { relativeTo: this.route });
+    this.router.navigate(['election', election.id], { queryParams: { section: 'candidates' }, relativeTo: this.route });
   }
 
   viewResults(election: Election) {
     this.router.navigate(['election', election.id, 'results'], { relativeTo: this.route });
+  }
+
+  hasVoted(election: Election): boolean {
+    // TODO: Implement actual logic to check if the current user has voted in this election
+    return false; 
+  }
+
+  getStatutClass(statut: string | undefined): string {
+    if (!statut) return '';
+    return statut; // This will be used as a class, e.g., BROUILLON, EN_COURS
+  }
+
+  mapStatutForDisplay(statut: string | undefined): string {
+    if (!statut) return 'N/A';
+    const mapping: { [key: string]: string } = {
+      'BROUILLON': 'À venir',
+      'OUVERTE': 'Candidatures Ouvertes',
+      'EN_COURS': 'Vote en Cours',
+      'FERMEE': 'Terminée',
+      'TERMINEE': 'Terminée'
+    };
+    return mapping[statut] || statut;
+  }
+
+  closeElectionAdmin(election: Election): void {
+    if (!this.isAdmin || election.statut !== 'EN_COURS') {
+      // console.warn('User is not admin or election is not EN_COURS');
+      alert('Action non autorisée ou élection non en cours.');
+      return;
+    }
+    // Call the service to close the election
+    this.electionService.closeElection(election.id).subscribe({
+      next: () => {
+        // console.log(`Election ${election.id} closed successfully by admin.`);
+        alert('Élection fermée avec succès. Les résultats peuvent maintenant être calculés.');
+        this.loadElections(); // Refresh list
+      },
+      error: (err) => {
+        console.error(`Error closing election ${election.id} by admin:`, err);
+        alert(err.error?.message || 'Erreur lors de la fermeture de l\'élection.');
+      }
+    });
   }
 }
