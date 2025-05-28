@@ -1233,7 +1233,14 @@ import { AuthService } from '../../../../core/services/auth.service';
   .table-responsive {
     position: relative;
   }
-  
+     .error-message {
+      color: #f44336;
+      padding: 15px;
+      margin: 10px 0;
+      background-color: #ffebee;
+      border-radius: 4px;
+    }
+
   .table-responsive::after {
     content: '';
     position: absolute;

@@ -19,6 +19,15 @@ import {
 } from '../../../../core/services/election.service';
 import { AuthService, User } from '../../../../core/services/auth.service';
 
+// Placeholder for Departement interface and service - replace with your actual imports
+export interface Departement {
+  id: number;
+  nom: string;
+}
+
+// Mock DepartementService - replace with your actual service injection
+// import { DepartementService } from '../../../../core/services/departement.service';
+
 // Validator to ensure a date is not in the past (allows today)
 export function notPastDateValidator(): ValidatorFn {
   return (control: AbstractControl): ValidationErrors | null => {
@@ -27,9 +36,15 @@ export function notPastDateValidator(): ValidatorFn {
     }
     // For <input type="date">, value is "YYYY-MM-DD".
     // Append time to ensure it's compared as local start of day.
-    const selectedDate = new Date(control.value + 'T00:00:00');
+    const selectedDateString = control.value + 'T00:00:00';
+    const selectedDate = new Date(selectedDateString);
     const today = new Date();
     today.setHours(0, 0, 0, 0); // Compare with start of today
+
+    console.log('[notPastDateValidator] Control Value:', control.value);
+    console.log('[notPastDateValidator] Selected Date (as Date object):', selectedDate);
+    console.log('[notPastDateValidator] Today (midnight as Date object):', today);
+    console.log('[notPastDateValidator] Is selectedDate < today?:', selectedDate < today);
 
     return selectedDate < today ? { pastDate: true } : null;
   };
@@ -99,6 +114,7 @@ export function dateRangeValidator(dateOneControlName: string, dateTwoControlNam
         (ngSubmit)="onSubmit()"
         class="election-form"
       >
+       
         <div class="form-group">
           <label for="titre">Nom de l'élection</label>
           <input
@@ -136,14 +152,17 @@ export function dateRangeValidator(dateOneControlName: string, dateTwoControlNam
         </div>
 
         <div class="form-group">
-          <label for="departement_id">ID du Département (Optionnel)</label>
-          <input
-            type="number"
+          <label for="departement_id">Département</label>
+          <select
             id="departement_id"
             formControlName="departement_id"
             class="form-control"
-            placeholder="Laissez vide si non applicable"
-          />
+          >
+            <option [ngValue]="null">Sélectionnez un département (ou laissez vide)</option>
+            <option *ngFor="let dept of departements" [value]="dept.id">
+              {{ dept.nom }}
+            </option>
+          </select>
         </div>
 
         <div class="form-row">
@@ -205,13 +224,15 @@ export function dateRangeValidator(dateOneControlName: string, dateTwoControlNam
         </div>
 
         <div class="form-actions">
+          <div *ngIf="errorMessage" class="error-message">
+        {{ errorMessage }}
+      </div>
           <button type="button" class="btn btn-outline" (click)="cancelEdit()">
             {{ isEditMode ? "Annuler" : "Réinitialiser" }}
           </button>
           <button
             type="submit"
             class="btn btn-primary"
-            [disabled]="!electionForm.valid"
           >
             {{ isEditMode ? "Mettre à jour" : "Créer l'élection" }}
           </button>
@@ -312,6 +333,7 @@ export function dateRangeValidator(dateOneControlName: string, dateTwoControlNam
                   </a>
                   
                   <button
+                    *ngIf="election.statut === 'BROUILLON'"
                     class="btn-icon"
                     title="Modifier"
                     (click)="editElection(election)"
@@ -329,6 +351,7 @@ export function dateRangeValidator(dateOneControlName: string, dateTwoControlNam
                     </svg>
                   </button>
                   <button
+                    *ngIf="election.statut === 'BROUILLON'"
                     class="btn-icon"
                     title="Supprimer"
                     (click)="confirmDeleteElection(election)"
@@ -637,10 +660,18 @@ export function dateRangeValidator(dateOneControlName: string, dateTwoControlNam
     /* Actions Column */
     .actions {
       display: flex;
+      justify-content: end;
       gap: 8px;
       align-items: center;
     }
-    
+     .error-message {
+      color: #f44336;
+      padding: 15px;
+      margin: 10px 0;
+      background-color: #ffebee;
+      border-radius: 4px;
+    }
+
     /* Modal Styles */
     .modal-overlay {
       position: fixed;
@@ -833,6 +864,11 @@ export class ElectionsComponent implements OnInit, OnDestroy {
   electionForm: FormGroup;
   elections: Election[] = [];
   isLoading = false;
+  errorMessage: string | null = null;
+
+  departements: Departement[] = []; // To store fetched departments
+  isLoadingDepartements = false; // To track loading state for departments
+
   isEditMode = false;
   currentElectionId: number | null = null;
   showDeleteConfirmation = false;
@@ -845,6 +881,7 @@ export class ElectionsComponent implements OnInit, OnDestroy {
     private fb: FormBuilder,
     private electionService: ElectionService,
     private authService: AuthService,
+    // private departementService: DepartementService, // Uncomment and use your actual service
     private router: Router,
     private route: ActivatedRoute
   ) {
@@ -852,7 +889,7 @@ export class ElectionsComponent implements OnInit, OnDestroy {
       titre: ['', Validators.required],
       description: ['', Validators.required],
       type_election: ['', Validators.required],
-      departement_id: [null], // Optional, no validator for now
+      departement_id: [null], // Optional, will be a number (ID) or null
       date_debut_candidature: ['', [Validators.required, notPastDateValidator()]],
       date_fin_candidature: ['', Validators.required],
       date_debut_vote: ['', Validators.required],
@@ -873,6 +910,7 @@ export class ElectionsComponent implements OnInit, OnDestroy {
       console.log('ElectionsComponent - isAdmin:', this.isAdmin);
     });
     this.loadElections();
+    this.loadDepartements(); // Load departments
   }
 
   ngOnDestroy(): void {
@@ -894,6 +932,23 @@ export class ElectionsComponent implements OnInit, OnDestroy {
         // TODO: Afficher un message d'erreur à l'utilisateur
       },
     });
+  }
+
+  loadDepartements(): void {
+    this.isLoadingDepartements = true;
+    // MOCK IMPLEMENTATION: Replace with your actual service call
+    // For example: this.departementService.getDepartements().subscribe({ ... });
+    setTimeout(() => { // Simulating an API call
+      this.departements = [
+        { id: 1, nom: 'Département Informatique' },
+        { id: 2, nom: 'Département Mathématiques' },
+        { id: 3, nom: 'Département Physique' },
+        { id: 10, nom: 'UFR Sciences et Technologies' },
+      ];
+      this.isLoadingDepartements = false;
+      console.log('Mock departements loaded:', this.departements);
+    }, 1000);
+    // Handle errors appropriately in your actual implementation
   }
 
   toggleNewElectionForm(): void {
@@ -930,7 +985,7 @@ export class ElectionsComponent implements OnInit, OnDestroy {
       titre: '',
       description: '',
       type_election: '',
-      departement_id: null,
+      departement_id: null, // Ensure this is reset to null for the dropdown
       date_debut_candidature: '',
       date_fin_candidature: '',
       date_debut_vote: '',
@@ -952,7 +1007,8 @@ export class ElectionsComponent implements OnInit, OnDestroy {
   }
 
   editElection(election: Election): void {
-    if (!this.isAdmin) return;
+    window.scrollTo(0, 0);
+    if (election.statut !== 'BROUILLON') return;
 
     this.isEditMode = true;
     this.currentElectionId = election.id;
@@ -961,20 +1017,29 @@ export class ElectionsComponent implements OnInit, OnDestroy {
     // Format dates for the form (YYYY-MM-DD format for input[type=date])
     const formatDate = (dateStr: string) => {
       if (!dateStr) return '';
-      const date = new Date(dateStr);
-      return date.toISOString().split('T')[0];
+      const date = new Date(dateStr); // dateStr est la date de l'API
+
+      // Extrait les composantes de la date locale
+      const year = date.getFullYear();
+      const month = (date.getMonth() + 1).toString().padStart(2, '0'); // getMonth() est 0-indexed
+      const day = date.getDate().toString().padStart(2, '0');
+
+      return `${year}-${month}-${day}`;
     };
 
-    this.electionForm.patchValue({
+    const valuesToPatch = {
       titre: election.titre,
       description: election.description,
       type_election: election.type_election,
-      departement_id: election.departement_id || null,
+      departement_id: election.departement_id !== undefined && election.departement_id !== null ? Number(election.departement_id) : null,
       date_debut_candidature: formatDate(election.date_debut_candidature),
       date_fin_candidature: formatDate(election.date_fin_candidature),
       date_debut_vote: formatDate(election.date_debut_vote),
       date_fin_vote: formatDate(election.date_fin_vote),
-    });
+    };
+    console.log('[editElection] Values to patch form with:', valuesToPatch);
+
+    this.electionForm.patchValue(valuesToPatch);
   }
 
   confirmDeleteElection(election: Election): void {
@@ -1012,9 +1077,10 @@ export class ElectionsComponent implements OnInit, OnDestroy {
   }
 
   onSubmit(): void {
-    if (this.electionForm.valid) {
+ 
       // Ensure all fields expected by the backend are present, even if optional and empty
       const formValue = this.electionForm.value;
+
       const electionData: Partial<Election> = {
         titre: formValue.titre,
         description: formValue.description,
@@ -1035,10 +1101,12 @@ export class ElectionsComponent implements OnInit, OnDestroy {
       // make it undefined or omit it. Since it's type number, empty input becomes null.
       if (
         formValue.departement_id !== null &&
+        formValue.departement_id !== '' && // Check for empty string if select allows it
         !isNaN(Number(formValue.departement_id))
       ) {
         electionData.departement_id = Number(formValue.departement_id);
       } else {
+        electionData.departement_id = undefined; // Ensure it's undefined if not set or invalid
         // If null, or NaN (e.g. if input was text), treat as not provided.
         // It will be undefined by not being set on electionData if it's not added above.
         // Or explicitly: electionData.departement_id = undefined;
@@ -1065,11 +1133,24 @@ export class ElectionsComponent implements OnInit, OnDestroy {
               // TODO: Afficher un message de succès
             },
             error: (err) => {
-              console.error(
-                `Erreur lors de la mise à jour de l'élection ${this.currentElectionId}:`,
-                err
-              );
-              // TODO: Afficher un message d'erreur détaillé
+              console.error(`Erreur lors de la mise à jour de l'élection ${this.currentElectionId}:`, err);
+              this.errorMessage = 'Erreur lors de la mise à jour de l\'élection.'; // Default message
+              if (err.error && err.error.errors && typeof err.error.errors === 'object') {
+                const fieldErrors = err.error.errors;
+                const errorKeys = Object.keys(fieldErrors);
+                if (errorKeys.length > 0) {
+                  const firstErrorFieldKey = errorKeys[0];
+                  const messagesForField = fieldErrors[firstErrorFieldKey];
+                  if (Array.isArray(messagesForField) && messagesForField.length > 0) {
+                    this.errorMessage = messagesForField[0];
+                  }
+                }
+              } else if (err.error && typeof err.error.message === 'string') { // Fallback for general backend error message
+                this.errorMessage = err.error.message;
+              } else if (typeof err.message === 'string') { // Fallback for top-level error message
+                  this.errorMessage = err.message;
+              }
+              // TODO: Afficher un message d'erreur détaillé (partially addressed)
             },
           });
       } else {
@@ -1089,7 +1170,7 @@ export class ElectionsComponent implements OnInit, OnDestroy {
           },
         });
       }
-    }
+    
   }
 
   openElection(electionId: number): void {

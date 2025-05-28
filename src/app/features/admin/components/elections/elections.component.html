@@ -712,6 +712,7 @@
               <button
                 class="btn-icon"
                 title="Modifier"
+                *ngIf="election.statut === 'BROUILLON'"
                 (click)="editElection(election)"
               >
                 <svg
