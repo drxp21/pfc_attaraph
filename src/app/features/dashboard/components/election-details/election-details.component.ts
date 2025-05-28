@@ -1,19 +1,19 @@
-import { Component, OnInit } from '@angular/core';
+import { Component, OnInit, OnDestroy } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { ActivatedRoute, Router, RouterModule } from '@angular/router';
 import { ElectionService, Election } from '../../../../core/services/election.service';
 import { VoteService } from '../../../../core/services/vote.service';
 import { FormsModule } from '@angular/forms';
-import { AuthService } from '../../../../core/services/auth.service';
-// Assuming AuthService is available for role checking
-// import { AuthService } from '../../../../core/services/auth.service';
+import { AuthService, User } from '../../../../core/services/auth.service';
+import { Subject, of, forkJoin, EMPTY } from 'rxjs';
+import { takeUntil, switchMap, catchError, tap } from 'rxjs/operators';
 
 @Component({
   selector: 'app-election-details',
   standalone: true,
   imports: [CommonModule, RouterModule, FormsModule],
   template: `
-    <div class="election-details-container">
+    <div class="election-details-container" [class.loading]="isLoading">
     <div class="admin-actions mt-4 pt-3 border-top" *ngIf="isAdmin && election?.statut === 'EN_COURS'">
      <h4>Actions Administrateur</h4>
      <button class="btn btn-danger" (click)="closeAndCalculateElection()">
@@ -23,7 +23,7 @@ import { AuthService } from '../../../../core/services/auth.service';
        {{ actionMessage }}
      </div>
    </div>
-      <div *ngIf="election" class="election-card">
+      <div *ngIf="election && !isLoading" class="election-card">
         <div class="election-header">
           <h2>{{ election.titre }}</h2>
           <span class="badge" [ngClass]="{
@@ -63,14 +63,14 @@ import { AuthService } from '../../../../core/services/auth.service';
               </div>
               <div class="candidate-info">
                 <h4>{{ candidature.candidat?.prenom }} {{ candidature.candidat?.nom }}</h4>
-                <p *ngIf="candidature.programme">{{ candidature.programme | slice:0:100 }}...</p>
+                <p *ngIf="candidature.programme">
+                  {{ candidature.programme.length > 100 ? (candidature.programme | slice:0:100) + '...' : candidature.programme }}
+                  <button *ngIf="candidature.programme.length > 100" (click)="openProgrammeModal(candidature.programme); $event.stopPropagation()" class="btn btn-link btn-sm p-0">Lire la suite</button>
+                </p>
               </div>
             </div>
           </div>
         </div>
-
-        <!-- Admin Actions Section -->
-     
 
         <div class="vote-actions" *ngIf="election.statut === 'EN_COURS' && !hasVoted && !isAdmin">
           <div class="form-check mb-3">
@@ -83,8 +83,8 @@ import { AuthService } from '../../../../core/services/auth.service';
           <button class="btn btn-primary" (click)="submitVote()" [disabled]="!canVote()">
             {{ isSubmitting ? 'Envoi en cours...' : 'Confirmer mon vote' }}
           </button>
-          <div *ngIf="errorMessage" class="alert alert-danger mt-3">
-            {{ errorMessage }}
+          <div *ngIf="voteSubmitErrorMessage" class="alert alert-danger mt-3">
+            {{ voteSubmitErrorMessage }}
           </div>
         </div>
 
@@ -93,8 +93,27 @@ import { AuthService } from '../../../../core/services/auth.service';
         </div>
       </div>
 
-      <div *ngIf="!election && !isLoading" class="alert alert-warning">
-        Impossible de charger les détails de l'élection.
+      <div *ngIf="!election && !isLoading && pageErrorMessage" class="alert alert-warning">
+        {{ pageErrorMessage }}
+      </div>
+      <div *ngIf="isLoading" class="loading-container">
+         <div class="spinner-border text-primary" role="status">
+            <span class="visually-hidden">Chargement...</span>
+         </div>
+         <p>Chargement des détails de l'élection...</p>
+      </div>
+    </div>
+
+    <!-- Programme Modal -->
+    <div *ngIf="selectedProgrammeForModal" class="modal-overlay" (click)="closeProgrammeModal()">
+      <div class="modal-content" (click)="$event.stopPropagation()">
+        <div class="modal-header">
+          <h4>Programme du Candidat</h4>
+          <button (click)="closeProgrammeModal()" class="btn-close">&times;</button>
+        </div>
+        <div class="modal-body">
+          <pre>{{ selectedProgrammeForModal }}</pre>
+        </div>
       </div>
     </div>
   `,
@@ -392,83 +411,74 @@ import { AuthService } from '../../../../core/services/auth.service';
   left: 0;
   right: 0;
   bottom: 0;
-  background: rgba(0, 0, 0, 0.5);
+  background: rgba(0, 0, 0, 0.6);
   display: flex;
   align-items: center;
   justify-content: center;
-  z-index: 1000;
-  padding: 20px;
-}
-
-.modal-dialog {
-  width: 100%;
-  max-width: 500px;
+  z-index: 1050; /* Ensure it's above other content */
+  padding: 16px;
 }
 
 .modal-content {
   background: white;
+  padding: 24px;
   border-radius: var(--border-radius);
   box-shadow: var(--shadow-lg);
-  overflow: hidden;
+  width: 100%;
+  max-width: 700px;
+  max-height: 80vh;
+  display: flex;
+  flex-direction: column;
 }
 
 .modal-header {
-  padding: 24px 32px 16px;
-  border-bottom: 1px solid var(--gray-200);
   display: flex;
   justify-content: space-between;
   align-items: center;
+  border-bottom: 1px solid var(--gray-200);
+  padding-bottom: 16px;
+  margin-bottom: 16px;
 }
 
 .modal-header h4 {
-  color: var(--primary);
-  font-size: 1.25rem;
-  font-weight: 600;
   margin: 0;
+  font-size: 1.25rem;
+  color: var(--primary);
 }
 
-.close-btn {
+.btn-close {
   background: none;
   border: none;
   font-size: 1.5rem;
-  color: var(--gray-500);
   cursor: pointer;
   padding: 0;
-  width: 32px;
-  height: 32px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  border-radius: 50%;
-  transition: var(--transition);
+  line-height: 1;
+  color: var(--gray-500);
 }
 
-.close-btn:hover {
-  background: var(--gray-100);
+.btn-close:hover {
   color: var(--primary);
 }
 
 .modal-body {
-  padding: 24px 32px;
+  overflow-y: auto;
+  line-height: 1.6;
 }
 
-.modal-body p {
-  color: var(--gray-700);
-  margin-bottom: 16px;
-  line-height: 1.5;
-}
-
-.modal-body .warning {
-  color: var(--warning, #ff9800);
-  font-weight: 500;
+.modal-body pre {
+  white-space: pre-wrap; /* Allows text to wrap */
+  word-wrap: break-word;  /* Breaks long words if necessary */
+  font-family: inherit;   /* Use the same font as the rest of the page */
+  font-size: 0.95rem;
   margin: 0;
 }
 
-.modal-footer {
-  padding: 16px 32px 24px;
-  display: flex;
-  gap: 16px;
-  justify-content: flex-end;
+.btn-link.btn-sm.p-0 {
+  padding: 0 !important; /* Override existing btn padding if necessary */
+  font-size: 0.85rem;
+  margin-left: 8px;
+  vertical-align: baseline;
+  text-decoration: underline;
 }
 
 /* State Messages */
@@ -2107,76 +2117,98 @@ input.form-control.is-invalid:focus {
     box-shadow: none;
     border: 1px solid var(--gray-300);
   }
-}`]
+}
+`]
 })
-export class ElectionDetailsComponent implements OnInit {
+export class ElectionDetailsComponent implements OnInit, OnDestroy {
+  private destroy$ = new Subject<void>();
+  
   election: Election | null = null;
   selectedCandidate: any = null;
   isBlankVote = false;
   isSubmitting = false;
   hasVoted = false;
-  errorMessage: string | null = null;
+  pageErrorMessage: string | null = null;
+  voteSubmitErrorMessage: string | null = null;
   isLoading = true;
-  isAdmin = false; // Placeholder: Implement actual admin check
+  isAdmin = false;
   actionMessage: string | null = null;
   actionMessageType: 'success' | 'error' | null = null;
+  selectedProgrammeForModal: string | null = null;
 
   constructor(
     private route: ActivatedRoute,
     private router: Router,
     private electionService: ElectionService,
     private voteService: VoteService,
-    private authService: AuthService,
-    // private authService: AuthService // Inject if needed for isAdmin check
+    private authService: AuthService
   ) { }
 
   ngOnInit() {
-    // Placeholder for isAdmin check - replace with actual logic from AuthService
-    this.isAdmin = this.authService.getUserRole() === 'ADMIN'; 
-    this.loadElection();
-  }
-
-  loadElection() {
-    this.isLoading = true;
-    const id = this.route.snapshot.paramMap.get('id');
-    if (id) {
-      this.electionService.getElection(+id).subscribe({
-        next: (data) => {
-          this.election = data;
-          if (this.election.statut === 'EN_COURS') {
-            this.checkIfVoted(); // Only check if voted if election is in progress
-          } else {
-            this.isLoading = false;
-          }
-        },
-        error: (err) => {
-          console.error('Error loading election:', err);
-          this.errorMessage = "Impossible de charger les détails de l'élection.";
-          this.isLoading = false;
-        }
-      });
-    } else {
-      this.errorMessage = "ID de l'élection non trouvé.";
-      this.isLoading = false;
-    }
-  }
-
-  checkIfVoted() {
-    if (!this.election) return;
-    this.voteService.hasVoted(this.election.id).subscribe({
-      next: (response: any) => {
-        this.hasVoted = typeof response === 'boolean' ? response : response?.hasVoted === true;
-        this.isLoading = false;
-      },
-      error: (error) => {
-        console.error('Error checking vote status:', error);
-        this.hasVoted = false; 
-        this.isLoading = false;
-      }
+    this.authService.currentUser$.pipe(
+      takeUntil(this.destroy$)
+    ).subscribe(user => {
+      this.isAdmin = user?.type_personnel === 'ADMIN';
     });
+
+    this.route.paramMap.pipe(
+      tap(() => {
+        this.isLoading = true;
+        this.election = null;
+        this.hasVoted = false;
+        this.pageErrorMessage = null;
+      }),
+      switchMap(params => {
+        const id = params.get('id');
+        if (!id) {
+          this.pageErrorMessage = "ID de l'élection non trouvé.";
+          this.isLoading = false;
+          return EMPTY;
+        }
+        return this.loadElectionData(+id);
+      }),
+      takeUntil(this.destroy$)
+    ).subscribe();
+  }
+
+  loadElectionData(electionId: number) {
+    return this.electionService.getElection(electionId).pipe(
+      switchMap(election => {
+        this.election = election;
+        if (election.statut === 'EN_COURS' && !this.isAdmin) {
+          return this.voteService.hasVoted(election.id).pipe(
+            tap(voteStatusResponse => {
+              this.hasVoted = typeof voteStatusResponse === 'boolean' ? voteStatusResponse : (voteStatusResponse as any)?.hasVoted === true;
+            }),
+            catchError(err => {
+              console.error('Error checking vote status:', err);
+              this.pageErrorMessage = "Erreur lors de la vérification du statut de vote.";
+              return of(false);
+            })
+          );
+        }
+        return of(undefined);
+      }),
+      tap(() => this.isLoading = false),
+      catchError(err => {
+        console.error('Error loading election details:', err);
+        this.pageErrorMessage = "Impossible de charger les détails de l'élection.";
+        this.election = null;
+        this.isLoading = false;
+        return EMPTY;
+      })
+    );
+  }
+
+  ngOnDestroy() {
+    this.destroy$.next();
+    this.destroy$.complete();
   }
 
   selectCandidate(candidate: any) {
+    if (this.election?.statut !== 'EN_COURS') {
+      return;
+    }
     if (this.isBlankVote) {
       this.isBlankVote = false;
     }
@@ -2190,14 +2222,15 @@ export class ElectionDetailsComponent implements OnInit {
   }
 
   canVote(): boolean {
-    return !this.isSubmitting && (this.isBlankVote || this.selectedCandidate !== null);
+    return !this.isAdmin && this.election?.statut === 'EN_COURS' && !this.isSubmitting && (this.isBlankVote || this.selectedCandidate !== null);
   }
 
   submitVote() {
     if (!this.election || !this.canVote()) return;
 
     this.isSubmitting = true;
-    this.errorMessage = null;
+    this.voteSubmitErrorMessage = null;
+    this.actionMessage = null;
 
     const voteData = {
       election_id: this.election.id,
@@ -2205,17 +2238,18 @@ export class ElectionDetailsComponent implements OnInit {
       vote_blanc: this.isBlankVote
     };
 
-    this.voteService.submitVote(voteData).subscribe({
-      next: (response) => {
+    this.voteService.submitVote(voteData).pipe(
+      takeUntil(this.destroy$)
+    ).subscribe({
+      next: () => {
         this.hasVoted = true;
         this.isSubmitting = false;
         this.actionMessage = 'Votre vote a été enregistré avec succès!';
         this.actionMessageType = 'success';
-        // Optionally navigate or show persistent success message
       },
       error: (error) => {
         console.error('Error submitting vote:', error);
-        this.errorMessage = error.error?.message || 'Une erreur est survenue lors de l\'envoi de votre vote';
+        this.voteSubmitErrorMessage = error.error?.message || "Une erreur est survenue lors de l'envoi de votre vote.";
         this.isSubmitting = false;
       }
     });
@@ -2223,29 +2257,40 @@ export class ElectionDetailsComponent implements OnInit {
 
   closeAndCalculateElection(): void {
     if (!this.election || !this.isAdmin) return;
+    this.isSubmitting = true;
     this.actionMessage = null;
-    this.electionService.closeElection(this.election.id).subscribe({
+    this.electionService.closeElection(this.election.id).pipe(
+      takeUntil(this.destroy$)
+    ).subscribe({
       next: () => {
-        this.actionMessage = 'L\'élection a été fermée avec succès. Le calcul des résultats est en cours.';
+        this.actionMessage = "L'élection a été fermée avec succès. Le calcul des résultats est en cours.";
         this.actionMessageType = 'success';
-        this.election!.statut = 'FERMEE'; // Update status locally
-        // Optionally, navigate to results page or refresh data more thoroughly
-        // this.loadElection(); // to refresh everything including disabling the button
-         this.router.navigate(['../results'], { relativeTo: this.route });
+        if(this.election) this.election.statut = 'FERMEE';
+        this.isSubmitting = false;
+        setTimeout(() => this.router.navigate(['../results'], { relativeTo: this.route }), 1500);
       },
       error: (err) => {
         console.error('Error closing election:', err);
-        this.actionMessage = err.error?.message || 'Erreur lors de la fermeture de l\'élection.';
+        this.actionMessage = err.error?.message || "Erreur lors de la fermeture de l'élection.";
         this.actionMessageType = 'error';
+        this.isSubmitting = false;
       }
     });
   }
 
   viewResults(election: Election) {
-    this.router.navigate(['election', election.id, 'results'], { relativeTo: this.route });
+    this.router.navigate(['election', election.id, 'results'], { relativeTo: this.route.parent });
   }
 
   goBack() {
-    this.router.navigate(['../'], { relativeTo: this.route }); // Navigate to parent (elections list)
+    this.router.navigate(['../'], { relativeTo: this.route });
+  }
+
+  openProgrammeModal(programme: string): void {
+    this.selectedProgrammeForModal = programme;
+  }
+
+  closeProgrammeModal(): void {
+    this.selectedProgrammeForModal = null;
   }
 }

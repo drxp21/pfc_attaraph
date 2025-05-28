@@ -12,7 +12,7 @@ import { AuthService } from '../../../../core/services/auth.service';
   template: `
     <div class="elections-container">
       <div class="page-header">
-        <h2>Élections en cours</h2>
+        <h2>Élections </h2>
         <p>Participez aux élections universitaires en cours</p>
       </div>
 

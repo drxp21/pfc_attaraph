@@ -88,6 +88,6 @@ export class ElectionResultsComponent implements OnInit {
   goBack(): void {
     // Navigate back to the main elections list or a specific dashboard page
     // Assuming the dashboard is one level up from '../election/:id/results'
-    this.router.navigate(['../../'], { relativeTo: this.route });
+    this.router.navigate(['../'], { relativeTo: this.route });
   }
 } 

@@ -1,19 +1,52 @@
-import { Component } from '@angular/core';
+import { Component, OnInit } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { RouterModule } from '@angular/router';
+import { HttpClient, HttpClientModule } from '@angular/common/http';
+import { Observable, of } from 'rxjs';
+import { catchError } from 'rxjs/operators';
+import { environment } from '../../../../../environments/environment';
+
+// Define interfaces for the data structure
+interface QuickStats {
+  ongoingElectionsCount: number;
+  activeCandidacyCount: number;
+  votesCastCount: number;
+}
+
+interface UpcomingElection {
+  id: string;
+  title: string;
+  startDate: string;
+  detailsLink: string;
+}
+
+interface RecentActivity {
+  id: string;
+  icon: string;
+  description: string;
+  dateRelative: string;
+}
+
+interface OverviewData {   
+  quickStats: QuickStats;
+  upcomingElections: UpcomingElection[];
+  recentActivities: RecentActivity[];
+}
+
+const API_URL = `${environment.apiUrl}/dashboard`;
 
 @Component({
   selector: 'app-overview',
   standalone: true,
-  imports: [CommonModule, RouterModule],
+  imports: [CommonModule, RouterModule, HttpClientModule],
   template: `
-    <div class="overview-container">
+    <div *ngIf="overviewData" class="overview-container">
       <!-- Statistiques rapides -->
       <div class="stats-grid">
         <div class="stat-card">
           <div class="stat-icon">🗳️</div>
           <div class="stat-info">
-            <span class="stat-value">3</span>
+            <span class="stat-value">{{ overviewData.quickStats.ongoingElectionsCount }}</span>
             <span class="stat-label">Élections en cours</span>
           </div>
         </div>
@@ -21,7 +54,7 @@ import { RouterModule } from '@angular/router';
         <div class="stat-card">
           <div class="stat-icon">📝</div>
           <div class="stat-info">
-            <span class="stat-value">1</span>
+            <span class="stat-value">{{ overviewData.quickStats.activeCandidacyCount }}</span>
             <span class="stat-label">Candidature active</span>
           </div>
         </div>
@@ -29,7 +62,7 @@ import { RouterModule } from '@angular/router';
         <div class="stat-card">
           <div class="stat-icon">✓</div>
           <div class="stat-info">
-            <span class="stat-value">5</span>
+            <span class="stat-value">{{ overviewData.quickStats.votesCastCount }}</span>
             <span class="stat-label">Votes effectués</span>
           </div>
         </div>
@@ -39,53 +72,46 @@ import { RouterModule } from '@angular/router';
       <div class="section-card">
         <div class="card-header">
           <h3>Prochaines élections</h3>
-          <a routerLink="/dashboard/elections" class="btn btn-text">Voir tout</a>
+          <a routerLink="/dashboard/elections/election" class="btn btn-text">Voir tout</a>
         </div>
         
-        <div class="elections-list">
-          <div class="election-item">
+        <div *ngIf="overviewData.upcomingElections.length > 0; else noElections" class="elections-list">
+          <div *ngFor="let election of overviewData.upcomingElections" class="election-item">
             <div class="election-info">
-              <h4>Chef du Département Informatique</h4>
-              <p>Début: 15 Mai 2025</p>
+              <h4>{{ election.title }}</h4>
+              <p>Début: {{ election.startDate }}</p>
             </div>
-            <a routerLink="/dashboard/elections" class="btn btn-outline">Participer</a>
-          </div>
-          
-          <div class="election-item">
-            <div class="election-info">
-              <h4>Directeur UFR Sciences</h4>
-              <p>Début: 1 Juin 2025</p>
-            </div>
-            <a routerLink="/dashboard/elections" class="btn btn-outline">Participer</a>
+            <a [routerLink]="election.detailsLink" class="btn btn-outline">Participer</a>
           </div>
         </div>
+        <ng-template #noElections>
+          <p>Aucune élection à venir pour le moment.</p>
+        </ng-template>
       </div>
 
       <!-- Activité récente -->
       <div class="section-card">
         <div class="card-header">
           <h3>Activité récente</h3>
-          <a routerLink="/dashboard/historique" class="btn btn-text">Historique complet</a>
+          <a routerLink="/dashboard/elections" class="btn btn-text">Historique complet</a>
         </div>
         
-        <div class="activity-list">
-          <div class="activity-item">
-            <div class="activity-icon">✓</div>
+        <div *ngIf="overviewData.recentActivities.length > 0; else noActivities" class="activity-list">
+          <div *ngFor="let activity of overviewData.recentActivities" class="activity-item">
+            <div class="activity-icon">{{ activity.icon }}</div>
             <div class="activity-info">
-              <p>Vote effectué - Élection Chef de Département</p>
-              <span class="activity-date">Il y a 2 jours</span>
-            </div>
-          </div>
-          
-          <div class="activity-item">
-            <div class="activity-icon">📝</div>
-            <div class="activity-info">
-              <p>Candidature soumise - Directeur UFR</p>
-              <span class="activity-date">Il y a 5 jours</span>
+              <p>{{ activity.description }}</p>
+              <span class="activity-date">{{ activity.dateRelative }}</span>
             </div>
           </div>
         </div>
+        <ng-template #noActivities>
+          <p>Aucune activité récente.</p>
+        </ng-template>
       </div>
+    </div>
+    <div *ngIf="!overviewData">
+      <p>Chargement des données du tableau de bord...</p>
     </div>
   `,
   styles: [`
@@ -249,4 +275,25 @@ import { RouterModule } from '@angular/router';
     }
   `]
 })
-export class OverviewComponent {}
+export class OverviewComponent implements OnInit {
+  overviewData: OverviewData | null = null;
+  errorMessage: string | null = null;
+
+  constructor(private http: HttpClient) {}
+
+  ngOnInit(): void {
+    this.http.get<OverviewData>(API_URL)
+      .pipe(
+        catchError(error => {
+          console.error('Error fetching dashboard data:', error);
+          this.errorMessage = 'Erreur lors du chargement des données du tableau de bord. Veuillez réessayer plus tard.';
+          return of(null);
+        })
+      )
+      .subscribe(data => {
+        if (data) {
+          this.overviewData = data;
+        }
+      });
+  }
+}
