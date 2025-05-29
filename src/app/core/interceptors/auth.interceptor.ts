@@ -14,6 +14,8 @@ import { environment } from '../../../environments/environment';
 
 @Injectable()
 export class AuthInterceptor implements HttpInterceptor {
+  private loginUrl = `${environment.apiUrl}/login`; // Define login URL
+
   constructor(
     private authService: AuthService,
     private router: Router
@@ -36,11 +38,16 @@ export class AuthInterceptor implements HttpInterceptor {
 
     return next.handle(request).pipe(
       catchError((error: HttpErrorResponse) => {
-        if (error.status === 401) {
+        // Check if the error is 401 and if the request URL is NOT the login URL
+        if (error.status === 401 && error.url !== this.loginUrl) {
+          // Only logout if 401 is from a non-login API call
           this.authService.logout().subscribe({
+            // Navigate to login or handle error, ensure this doesn't cause loops
+            // The logout method in AuthService should ideally handle navigation
             error: (e) => console.error('Error during automatic logout on 401', e)
           });
         }
+        // For 401 on login or any other error, just rethrow to be handled by the calling service/component
         return throwError(() => error);
       })
     );
