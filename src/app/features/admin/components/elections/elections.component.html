@@ -679,14 +679,7 @@
           </td>
           <td *ngIf="isAdmin">
             <div class="actions">
-              <button
-                *ngIf="election.statut === 'BROUILLON'"
-                (click)="openElection(election.id)"
-                class="btn btn-sm btn-success"
-                title="Ouvrir l'élection"
-              >
-                Ouvrir
-              </button>
+              
               <button
                 *ngIf="election.statut === 'EN_COURS'"
                 (click)="closeElection(election.id)"
@@ -707,7 +700,7 @@
               </a>
             <button class="btn btn-info" *ngIf="election.statut === 'FERMEE'"
                     (click)="viewResults(election); $event.stopPropagation()">
-              Voir les résultats 
+              Voir les résultats --- 
             </button>
               <button
                 class="btn-icon"

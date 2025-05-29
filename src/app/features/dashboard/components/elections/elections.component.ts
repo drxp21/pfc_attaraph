@@ -1,9 +1,11 @@
-import { Component, OnInit } from '@angular/core';
+import { Component, OnInit, OnDestroy } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { RouterModule, Router, ActivatedRoute } from '@angular/router';
-import { ElectionService, Election } from '../../../../core/services/election.service';
+import { ElectionService, Election, TypeElection } from '../../../../core/services/election.service';
 import { FormatElectionTypePipe } from '../../../elections/elections-list/elections-list.component';
-import { AuthService } from '../../../../core/services/auth.service';
+import { AuthService, User } from '../../../../core/services/auth.service';
+import { Subject } from 'rxjs';
+import { takeUntil } from 'rxjs/operators';
 
 @Component({
   selector: 'app-elections',
@@ -44,19 +46,20 @@ import { AuthService } from '../../../../core/services/auth.service';
           </div>
 
           <div class="election-actions" style="justify-content: flex-end;">
-            <button class="btn btn-primary" *ngIf="election.statut === 'EN_COURS' && !hasVoted(election)"
+            <button class="btn btn-primary" 
+                    *ngIf="election.statut === 'EN_COURS' && !hasVoted(election) && (currentUserType !== 'PATS' || (currentUserType === 'PATS' && election.type_election === 'VICE_RECTEUR'))"
                     (click)="viewCandidates(election); $event.stopPropagation()">
               Voter
             </button>
-            <button class="btn btn-outline" *ngIf="election.statut === 'EN_COURS'"
+            <button class="btn btn-outline" 
+                    *ngIf="election.statut === 'EN_COURS' && (currentUserType !== 'PATS' || (currentUserType === 'PATS' && election.type_election === 'VICE_RECTEUR'))"
                     (click)="viewCandidates(election); $event.stopPropagation()">
               Voir les candidats
             </button>
             <button class="btn btn-info" *ngIf="election.statut === 'FERMEE' || election.statut === 'TERMINEE'"
                     (click)="viewResults(election); $event.stopPropagation()">
-              Voir les résultats
+              Voir les résultats 
             </button>
-            <!-- Admin-specific Fermer button -->
             <button class="btn btn-warning"
                     *ngIf="isAdmin && election.statut === 'EN_COURS'"
                     (click)="closeElectionAdmin(election); $event.stopPropagation()">
@@ -1610,10 +1613,13 @@ import { AuthService } from '../../../../core/services/auth.service';
     }
   }`]
 })
-export class ElectionsComponent implements OnInit {
+export class ElectionsComponent implements OnInit, OnDestroy {
+  private destroy$ = new Subject<void>();
+
   elections: Election[] = [];
   isLoading = true;
   isAdmin = false;
+  currentUserType: User['type_personnel'] | null = null;
 
   constructor(
     private electionService: ElectionService,
@@ -1624,12 +1630,24 @@ export class ElectionsComponent implements OnInit {
 
   ngOnInit(): void {
     this.loadElections();
-    this.isAdmin = this.authService.getUserRole() === 'ADMIN';
+    this.authService.currentUser$.pipe(
+      takeUntil(this.destroy$)
+    ).subscribe(user => {
+      this.isAdmin = user?.type_personnel === 'ADMIN';
+      this.currentUserType = user?.type_personnel || null;
+    });
+  }
+
+  ngOnDestroy(): void {
+    this.destroy$.next();
+    this.destroy$.complete();
   }
 
   loadElections() {
     this.isLoading = true;
-    this.electionService.getElections().subscribe({
+    this.electionService.getElections().pipe(
+      takeUntil(this.destroy$)
+    ).subscribe({
       next: (elections) => {
         this.elections = elections;
         this.isLoading = false;

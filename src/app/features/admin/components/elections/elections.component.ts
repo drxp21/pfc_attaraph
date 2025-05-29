@@ -305,16 +305,9 @@ export function dateRangeValidator(dateOneControlName: string, dateTwoControlNam
               </td>
               <td *ngIf="isAdmin">
                 <div class="actions">
+                 
                   <button
-                    *ngIf="election.statut === 'BROUILLON'"
-                    (click)="openElection(election.id)"
-                    class="btn btn-sm btn-success"
-                    title="Ouvrir l'élection"
-                  >
-                    Ouvrir
-                  </button>
-                  <button
-                    *ngIf="election.statut === 'OUVERTE' || election.statut === 'EN_COURS'"
+                    *ngIf="election.statut === 'EN_COURS'"
                     (click)="closeElection(election.id)"
                     class="btn btn-sm btn-warning"
                     title="Fermer l'élection"
